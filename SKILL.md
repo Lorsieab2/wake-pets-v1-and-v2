@@ -13,13 +13,27 @@ description: Wake, validate, run, and manage already-installed Codex digital pet
 
 ## Setup
 
-Run from this skill directory. Install overlay dependencies once:
+Run shell commands from this skill directory unless a command explicitly changes directory.
+
+Install overlay dependencies once:
 
 ```bash
 scripts/setup_overlay.sh
 ```
 
 The launcher also runs setup automatically if Electron is missing.
+
+Manual dependency install from the runtime folder:
+
+```bash
+cd app && npm install
+```
+
+Update an installed skill checkout:
+
+```bash
+git pull && scripts/setup_overlay.sh
+```
 
 ## Slash Command Contract
 
@@ -65,12 +79,30 @@ The lower-level equivalent is:
 scripts/run_overlay.sh --pets koji jack nabi
 ```
 
+The direct Electron equivalent is:
+
+```bash
+cd app && npm start -- --pets koji jack nabi
+```
+
 If the overlay is already running, run the same command with additional pet ids to add missing pets to the live overlay.
+
+Direct Electron invocations can also add missing pets to the live overlay:
+
+```bash
+cd app && npm start -- --pets jack
+```
 
 Wake pets and open config:
 
 ```bash
 scripts/run_overlay.sh --config --pets koji jack nabi
+```
+
+The direct Electron equivalent is:
+
+```bash
+cd app && npm start -- --config --pets koji jack nabi
 ```
 
 ## Open Config
@@ -81,24 +113,13 @@ Open or focus the configuration window:
 scripts/run_overlay.sh config
 ```
 
+The direct Electron equivalent is:
+
+```bash
+cd app && npm run config
+```
+
 Config can wake/despawn pets, toggle movement/collisions, show or hide names, change movement speed, change idle animation speed, and resize running pets.
-
-## Pet Controls
-
-- Drag a pet to move it.
-- New pets start stopped by default.
-- Dragged pets show running left/right frames while being moved.
-- Drop gently to keep a pet stopped in place.
-- Throw with a fast release to make a pet continue moving.
-- Right-click a pet to stop it and open its menu.
-
-Right-click menu options:
-
-- `Smaller`
-- `Larger`
-- `Reset size`
-- `Open Config`
-- `Despawn pet`
 
 ## Stop Overlay
 
@@ -106,4 +127,10 @@ Use config `Despawn All`, despawn each pet, or stop the process:
 
 ```bash
 scripts/run_overlay.sh stop
+```
+
+The direct process-stop equivalent is:
+
+```bash
+pkill -f 'wake-pets/app'
 ```

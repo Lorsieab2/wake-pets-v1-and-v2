@@ -5,7 +5,7 @@ SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 APP_DIR="$(cd -- "$SCRIPT_DIR/../app" && pwd)"
 
 if [ "${1:-}" = "stop" ]; then
-  pkill -f 'wake-pets/app|pets-overlay/app' || true
+  pkill -f 'wake-pets/app' || true
   exit 0
 fi
 

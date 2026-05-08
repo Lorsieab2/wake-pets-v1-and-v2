@@ -236,7 +236,7 @@ function createConfigWindow() {
     height: 680,
     minWidth: 460,
     minHeight: 480,
-    title: "Pets Overlay",
+    title: "Wake Pets",
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 16 },
     show: false,
