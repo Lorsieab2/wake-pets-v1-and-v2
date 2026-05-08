@@ -1,11 +1,11 @@
-const { app, BrowserWindow, ipcMain, screen } = require("electron");
+const { app, BrowserWindow, Menu, ipcMain, screen } = require("electron");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
 const CELL_W = 192;
 const CELL_H = 208;
-const PET_WINDOW_PAD = 36;
+const PET_WINDOW_PAD = 0;
 const MIN_SCALE = 0.36;
 const MAX_SCALE = 1.08;
 const SCALE_STEP = 0.08;
@@ -133,9 +133,45 @@ function centerOf(pet) {
 
 function petWindowSize(scale) {
   return {
-    width: Math.ceil(CELL_W * MAX_SCALE + PET_WINDOW_PAD * 2),
-    height: Math.ceil(CELL_H * MAX_SCALE + PET_WINDOW_PAD * 2)
+    width: Math.ceil(CELL_W * scale + PET_WINDOW_PAD * 2),
+    height: Math.ceil(CELL_H * scale + PET_WINDOW_PAD * 2)
   };
+}
+
+function petStillOpen(pet) {
+  return pets.has(pet.id) && pet.win && !pet.win.isDestroyed();
+}
+
+function showPetMenu(pet) {
+  if (!petStillOpen(pet)) return;
+  stopPet(pet);
+  Menu.buildFromTemplate([
+    {
+      label: "Smaller",
+      click: () => {
+        if (petStillOpen(pet)) setPetScale(pet, pet.scale - SCALE_STEP);
+      }
+    },
+    {
+      label: "Larger",
+      click: () => {
+        if (petStillOpen(pet)) setPetScale(pet, pet.scale + SCALE_STEP);
+      }
+    },
+    {
+      label: "Reset size",
+      click: () => {
+        if (petStillOpen(pet)) setPetScale(pet, pet.defaultScale);
+      }
+    },
+    { type: "separator" },
+    {
+      label: "Despawn pet",
+      click: () => {
+        if (petStillOpen(pet)) pet.win.close();
+      }
+    }
+  ]).popup({ window: pet.win });
 }
 
 function petForSender(sender) {
@@ -523,6 +559,11 @@ ipcMain.on("overlay-update-settings", (_event, settings) => {
 ipcMain.on("pet-stop", (event) => {
   const pet = petForSender(event.sender);
   if (pet) stopPet(pet);
+});
+
+ipcMain.on("pet-open-menu", (event) => {
+  const pet = petForSender(event.sender);
+  if (pet) showPetMenu(pet);
 });
 
 ipcMain.on("pet-resize", (event, direction) => {

@@ -46,6 +46,9 @@ contextBridge.exposeInMainWorld("petOverlay", {
   stop() {
     ipcRenderer.send("pet-stop");
   },
+  openMenu(point) {
+    ipcRenderer.send("pet-open-menu", point);
+  },
   resize(direction) {
     ipcRenderer.send("pet-resize", direction);
   },
