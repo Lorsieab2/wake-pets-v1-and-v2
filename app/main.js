@@ -310,10 +310,12 @@ function setPetScale(pet, scale) {
   sendPetConfig(pet);
 }
 
-function writeAddRequest(ids) {
-  if (!ids.length) return;
+function writeOverlayRequest(argv = process.argv) {
+  const ids = requestedPetIds(argv);
+  const openConfig = wantsConfig(argv);
+  if (!ids.length && !openConfig) return;
   try {
-    fs.writeFileSync(REQUEST_FILE, JSON.stringify({ ids, createdAt: Date.now() }));
+    fs.writeFileSync(REQUEST_FILE, JSON.stringify({ ids, openConfig, createdAt: Date.now() }));
   } catch (error) {
     console.error(error);
   }
@@ -328,6 +330,7 @@ function consumeAddRequest() {
     return;
   }
   if (Array.isArray(request.ids)) addPets(request.ids);
+  if (request.openConfig) createConfigWindow();
 }
 
 function bounce(pet) {
@@ -416,10 +419,13 @@ function tick() {
 const gotLock = app.requestSingleInstanceLock();
 
 if (!gotLock) {
-  writeAddRequest(requestedPetIds());
+  writeOverlayRequest();
   app.quit();
 } else {
-  app.on("second-instance", (_event, argv) => addPets(requestedPetIds(argv)));
+  app.on("second-instance", (_event, argv) => {
+    addPets(requestedPetIds(argv));
+    if (wantsConfig(argv)) createConfigWindow();
+  });
 }
 
 app.whenReady().then(() => {
