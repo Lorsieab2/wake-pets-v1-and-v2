@@ -22,7 +22,8 @@ const pets = new Map();
 const overlaySettings = {
   movementEnabled: true,
   collisionsEnabled: true,
-  speedMultiplier: 1
+  speedMultiplier: 1,
+  idleAnimationSpeed: 1
 };
 
 let lastTick = Date.now();
@@ -149,20 +150,24 @@ function showPetMenu(pet) {
     {
       label: "Smaller",
       click: () => {
-        if (petStillOpen(pet)) setPetScale(pet, pet.scale - SCALE_STEP);
+        if (petStillOpen(pet)) setPetScale(pet, pet.scale - SCALE_STEP, true);
       }
     },
     {
       label: "Larger",
       click: () => {
-        if (petStillOpen(pet)) setPetScale(pet, pet.scale + SCALE_STEP);
+        if (petStillOpen(pet)) setPetScale(pet, pet.scale + SCALE_STEP, true);
       }
     },
     {
       label: "Reset size",
       click: () => {
-        if (petStillOpen(pet)) setPetScale(pet, pet.defaultScale);
+        if (petStillOpen(pet)) setPetScale(pet, pet.defaultScale, true);
       }
+    },
+    {
+      label: "Open Config",
+      click: () => createConfigWindow()
     },
     { type: "separator" },
     {
@@ -189,8 +194,10 @@ function sendPetConfig(pet) {
 
 function overlayState() {
   return {
-    installedPets: installedPets().map((pet) => ({ id: pet.id, displayName: pet.displayName })),
+    installedPets: installedPets().map((pet) => ({ id: pet.id, displayName: pet.displayName, sprite: pet.sprite })),
     runningPets: [...pets.keys()],
+    runningPetDetails: [...pets.values()].map((pet) => ({ id: pet.id, scale: pet.scale })),
+    petScaleLimits: { min: MIN_SCALE, max: MAX_SCALE, step: 0.02 },
     overlaySettings
   };
 }
@@ -204,18 +211,22 @@ function broadcastState() {
 function createConfigWindow() {
   if (configWin && !configWin.isDestroyed()) {
     configWin.show();
+    configWin.moveTop();
     configWin.focus();
     broadcastState();
     return;
   }
 
   configWin = new BrowserWindow({
-    width: 520,
-    height: 620,
-    minWidth: 420,
-    minHeight: 420,
+    width: 560,
+    height: 680,
+    minWidth: 460,
+    minHeight: 480,
     title: "Pets Overlay",
+    titleBarStyle: "hiddenInset",
+    trafficLightPosition: { x: 16, y: 16 },
     show: false,
+    backgroundColor: "#f2f2f7",
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -223,8 +234,10 @@ function createConfigWindow() {
     }
   });
   configWin.setMenuBarVisibility(false);
+  configWin.setAlwaysOnTop(true, "modal-panel");
   configWin.once("ready-to-show", () => {
     configWin.show();
+    configWin.moveTop();
     configWin.focus();
   });
   configWin.webContents.once("did-finish-load", broadcastState);
@@ -332,7 +345,7 @@ function stopPet(pet) {
   chooseStoppedRow(pet);
 }
 
-function setPetScale(pet, scale) {
+function setPetScale(pet, scale, shouldBroadcast = false) {
   const oldCenter = centerOf(pet);
   const nextScale = clamp(scale, MIN_SCALE, MAX_SCALE);
   const nextSize = petWindowSize(nextScale);
@@ -344,6 +357,7 @@ function setPetScale(pet, scale) {
   bounce(pet);
   pet.win.setBounds({ x: Math.round(pet.x), y: Math.round(pet.y), width: pet.width, height: pet.height }, false);
   sendPetConfig(pet);
+  if (shouldBroadcast) broadcastState();
 }
 
 function writeOverlayRequest(argv = process.argv) {
@@ -446,6 +460,7 @@ function tick() {
     pet.win.webContents.send("pet-motion", {
       vx: pet.vx,
       vy: pet.vy,
+      idleAnimationSpeed: overlaySettings.idleAnimationSpeed,
       row: now < pet.interactingUntil ? pet.interactionRow : (pet.pinned ? pet.stoppedRow : undefined),
       state: now < pet.interactingUntil ? "interact" : (pet.pinned ? "stopped" : "move")
     });
@@ -542,6 +557,12 @@ ipcMain.on("overlay-despawn-pet", (_event, id) => {
   if (pet?.win && !pet.win.isDestroyed()) pet.win.close();
 });
 
+ipcMain.on("overlay-set-pet-scale", (_event, id, scale) => {
+  const pet = pets.get(id);
+  if (!pet || pet.win?.isDestroyed() || typeof scale !== "number") return;
+  setPetScale(pet, scale);
+});
+
 ipcMain.on("overlay-despawn-all", () => {
   for (const pet of pets.values()) {
     if (pet.win && !pet.win.isDestroyed()) pet.win.close();
@@ -553,6 +574,7 @@ ipcMain.on("overlay-update-settings", (_event, settings) => {
   if (typeof settings.movementEnabled === "boolean") overlaySettings.movementEnabled = settings.movementEnabled;
   if (typeof settings.collisionsEnabled === "boolean") overlaySettings.collisionsEnabled = settings.collisionsEnabled;
   if (typeof settings.speedMultiplier === "number") overlaySettings.speedMultiplier = clamp(settings.speedMultiplier, 0.25, 2.5);
+  if (typeof settings.idleAnimationSpeed === "number") overlaySettings.idleAnimationSpeed = clamp(settings.idleAnimationSpeed, 0.25, 2.5);
   broadcastState();
 });
 
@@ -570,14 +592,14 @@ ipcMain.on("pet-resize", (event, direction) => {
   const pet = petForSender(event.sender);
   if (!pet) return;
   stopPet(pet);
-  setPetScale(pet, pet.scale + (direction === "smaller" ? -SCALE_STEP : SCALE_STEP));
+  setPetScale(pet, pet.scale + (direction === "smaller" ? -SCALE_STEP : SCALE_STEP), true);
 });
 
 ipcMain.on("pet-reset-size", (event) => {
   const pet = petForSender(event.sender);
   if (!pet) return;
   stopPet(pet);
-  setPetScale(pet, pet.defaultScale);
+  setPetScale(pet, pet.defaultScale, true);
 });
 
 ipcMain.on("pet-close-overlay", () => {

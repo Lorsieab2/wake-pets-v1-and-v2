@@ -19,6 +19,9 @@ contextBridge.exposeInMainWorld("petOverlay", {
   despawnPet(id) {
     ipcRenderer.send("overlay-despawn-pet", id);
   },
+  setPetScale(id, scale) {
+    ipcRenderer.send("overlay-set-pet-scale", id, scale);
+  },
   despawnAll() {
     ipcRenderer.send("overlay-despawn-all");
   },
