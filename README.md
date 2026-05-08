@@ -19,6 +19,24 @@ This app does not create new pet art. Pets must already exist under:
 
 The Codex skill name is `wake-pets`.
 
+## Codex Usage
+
+After installing the skill, use these slash commands in Codex:
+
+```text
+/wake-pets koji, nabi
+/wake-pets jack
+/wake-pets config
+/wake-pets stop
+```
+
+- `/wake-pets koji, nabi` opens the overlay with `koji` and `nabi`.
+- `/wake-pets jack` opens the overlay if needed, or adds `jack` to the existing overlay if it is already open.
+- `/wake-pets config` opens or focuses the configuration window.
+- `/wake-pets stop` closes the overlay app process.
+
+Pet ids may be comma-separated, space-separated, or both. `config` and `stop` are reserved commands only when they are the first argument.
+
 ## Install For Codex
 
 One-line install from GitHub:
@@ -56,17 +74,32 @@ Or run the setup helper from the project root:
 
 ## Wake Pets
 
-Start the overlay with one or more existing pet ids:
+Start the overlay with one or more existing pet ids through the helper:
+
+```bash
+./scripts/run_overlay.sh koji, nabi
+```
+
+The lower-level Electron form is:
 
 ```bash
 cd app
 npm start -- --pets koji jack nabi
 ```
 
-The skill helper does setup automatically when dependencies are missing:
+The skill helper does setup automatically when dependencies are missing and also accepts explicit flags:
 
 ```bash
 ./scripts/run_overlay.sh --pets koji jack nabi
+```
+
+It accepts the same friendly arguments used by the skill:
+
+```bash
+./scripts/run_overlay.sh koji, nabi
+./scripts/run_overlay.sh jack
+./scripts/run_overlay.sh config
+./scripts/run_overlay.sh stop
 ```
 
 If the overlay is already running, running the same command with more pet ids adds any missing pets to the live overlay instead of opening a duplicate overlay app:
@@ -77,7 +110,13 @@ npm start -- --pets jack
 
 ## Open The Configuration Window
 
-Open only the configuration window:
+Open only the configuration window through the helper:
+
+```bash
+./scripts/run_overlay.sh config
+```
+
+The lower-level Electron form is:
 
 ```bash
 cd app
@@ -137,6 +176,12 @@ If all pets are despawned and the configuration window is closed, the overlay pr
 ## Stop The Overlay
 
 Use the configuration window's `Despawn All` button, despawn each pet from its right-click menu, or stop the Electron process:
+
+```bash
+./scripts/run_overlay.sh stop
+```
+
+The direct process-stop equivalent is:
 
 ```bash
 pkill -f 'wake-pets/app|pets-overlay/app'

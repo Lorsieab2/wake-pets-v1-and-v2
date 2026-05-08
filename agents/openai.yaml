@@ -1,4 +1,4 @@
 interface:
-  display_name: "Wake Multiple Pets"
-  short_description: "Run multiple installed Codex pets independently."
-  default_prompt: "Wake multiple already-installed Codex pets and make them move around the screen."
+  display_name: "Wake Pets"
+  short_description: "Run and manage installed Codex pets in the native overlay."
+  default_prompt: "Wake already-installed Codex pets in the native desktop overlay."

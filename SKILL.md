@@ -21,6 +21,28 @@ scripts/setup_overlay.sh
 
 The launcher also runs setup automatically if Electron is missing.
 
+## Slash Command Contract
+
+When invoked as `/wake-pets`, treat the first argument as a command only when it is exactly `config` or `stop`. Otherwise, treat the full argument string as a pet list. Pet ids may be comma-separated, space-separated, or both.
+
+- `/wake-pets koji, nabi` opens the overlay with `koji` and `nabi`.
+- `/wake-pets jack` opens the overlay if needed, or adds `jack` to the existing overlay if it is already running.
+- `/wake-pets config` opens or focuses the configuration window.
+- `/wake-pets stop` closes the overlay app process.
+
+Do not open duplicate overlay apps. Repeated pet invocations must add missing pets to the existing overlay process.
+
+Equivalent helper commands:
+
+```bash
+scripts/run_overlay.sh koji, nabi
+scripts/run_overlay.sh jack
+scripts/run_overlay.sh config
+scripts/run_overlay.sh stop
+```
+
+`scripts/run_overlay.sh config koji, nabi` opens config and wakes those pets.
+
 ## Validate Pets
 
 List installed pets and validation status:
@@ -31,7 +53,13 @@ scripts/list_custom_pets.py
 
 ## Wake Pets
 
-Wake one or more pets:
+Wake one or more pets with friendly arguments:
+
+```bash
+scripts/run_overlay.sh koji, nabi
+```
+
+The lower-level equivalent is:
 
 ```bash
 scripts/run_overlay.sh --pets koji jack nabi
@@ -50,7 +78,7 @@ scripts/run_overlay.sh --config --pets koji jack nabi
 Open or focus the configuration window:
 
 ```bash
-scripts/run_overlay.sh --config
+scripts/run_overlay.sh config
 ```
 
 Config can wake/despawn pets, toggle movement/collisions, show or hide names, change movement speed, change idle animation speed, and resize running pets.
@@ -77,5 +105,5 @@ Right-click menu options:
 Use config `Despawn All`, despawn each pet, or stop the process:
 
 ```bash
-pkill -f 'wake-pets/app|pets-overlay/app'
+scripts/run_overlay.sh stop
 ```

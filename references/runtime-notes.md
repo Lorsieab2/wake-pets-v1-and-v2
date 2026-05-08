@@ -64,6 +64,17 @@ Recommended behavior:
 - Pets already present should not be duplicated unless the user explicitly asks for duplicates.
 - A despawned pet may be added again by re-running the skill with that pet id.
 
+User-facing slash command contract:
+
+```text
+/wake-pets koji, nabi -> open the overlay with koji and nabi
+/wake-pets jack -> open the overlay if needed, otherwise add jack to the existing overlay
+/wake-pets config -> open or focus the configuration window
+/wake-pets stop -> close the overlay app process
+```
+
+The local helper mirrors that contract with `scripts/run_overlay.sh koji, nabi`, `scripts/run_overlay.sh jack`, `scripts/run_overlay.sh config`, and `scripts/run_overlay.sh stop`.
+
 ## Overlay Implementation Shape
 
 Represent each pet independently:
