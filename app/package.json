@@ -1,0 +1,13 @@
+{
+  "name": "native-multi-pet-overlay",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "config": "electron . --config"
+  },
+  "dependencies": {
+    "electron": "^41.2.0"
+  }
+}

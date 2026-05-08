@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pets Overlay</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #121316;
+      color: #f4f4f5;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #121316;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 650;
+      letter-spacing: 0;
+    }
+
+    main {
+      padding: 18px 20px 22px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #f4f4f5;
+      padding: 7px 10px;
+      font: inherit;
+      font-size: 12px;
+    }
+
+    button.primary {
+      background: #e6e6e6;
+      color: #18181b;
+      border-color: #e6e6e6;
+    }
+
+    button.danger {
+      color: #fecaca;
+    }
+
+    .pets {
+      display: grid;
+      gap: 10px;
+    }
+
+    .panel {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 13px;
+      color: #d4d4d8;
+      font-weight: 650;
+    }
+
+    .setting {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: #d4d4d8;
+      font-size: 13px;
+    }
+
+    .setting input[type="checkbox"] {
+      width: 17px;
+      height: 17px;
+    }
+
+    .setting input[type="range"] {
+      width: 180px;
+    }
+
+    .pet {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.045);
+    }
+
+    .pet input {
+      width: 17px;
+      height: 17px;
+    }
+
+    .name {
+      font-size: 14px;
+      font-weight: 620;
+    }
+
+    .meta {
+      margin-top: 3px;
+      color: #a1a1aa;
+      font-size: 12px;
+    }
+
+    .status {
+      color: #a1a1aa;
+      font-size: 12px;
+      text-align: right;
+    }
+
+    .status.running {
+      color: #86efac;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Pets Overlay</h1>
+    <div class="toolbar">
+      <button id="spawn" class="primary" type="button">Wake Selected</button>
+      <button id="despawn-all" class="danger" type="button">Despawn All</button>
+    </div>
+  </header>
+  <main>
+    <section class="panel">
+      <h2 class="panel-title">Overlay</h2>
+      <label class="setting">
+        <span>Movement</span>
+        <input id="movement" type="checkbox">
+      </label>
+      <label class="setting">
+        <span>Pet collisions</span>
+        <input id="collisions" type="checkbox">
+      </label>
+      <label class="setting">
+        <span>Speed <span id="speed-value"></span></span>
+        <input id="speed" type="range" min="0.25" max="2.5" step="0.05">
+      </label>
+    </section>
+    <div id="pets" class="pets"></div>
+  </main>
+
+  <script>
+    const petsEl = document.getElementById("pets");
+    const spawnButton = document.getElementById("spawn");
+    const despawnAllButton = document.getElementById("despawn-all");
+    const movement = document.getElementById("movement");
+    const collisions = document.getElementById("collisions");
+    const speed = document.getElementById("speed");
+    const speedValue = document.getElementById("speed-value");
+    let state = { installedPets: [], runningPets: [] };
+
+    function selectedIds() {
+      return [...document.querySelectorAll("input[data-pet-id]:checked")].map((input) => input.dataset.petId);
+    }
+
+    function render() {
+      const running = new Set(state.runningPets);
+      const settings = state.overlaySettings || {};
+      movement.checked = settings.movementEnabled !== false;
+      collisions.checked = settings.collisionsEnabled !== false;
+      speed.value = settings.speedMultiplier || 1;
+      speedValue.textContent = `${Number(speed.value).toFixed(2)}x`;
+      petsEl.innerHTML = "";
+      for (const pet of state.installedPets) {
+        const row = document.createElement("section");
+        row.className = "pet";
+        row.innerHTML = `
+          <input type="checkbox" data-pet-id="${pet.id}" ${running.has(pet.id) ? "checked" : ""}>
+          <div>
+            <div class="name">${pet.displayName}</div>
+            <div class="meta">${pet.id}</div>
+          </div>
+          <div>
+            <div class="status ${running.has(pet.id) ? "running" : ""}">${running.has(pet.id) ? "Running" : "Sleeping"}</div>
+            ${running.has(pet.id) ? `<button data-despawn="${pet.id}" type="button">Despawn</button>` : ""}
+          </div>
+        `;
+        petsEl.appendChild(row);
+      }
+    }
+
+    petsEl.addEventListener("click", (event) => {
+      const id = event.target.dataset?.despawn;
+      if (id) window.petOverlay.despawnPet(id);
+    });
+
+    spawnButton.addEventListener("click", () => {
+      window.petOverlay.spawnPets(selectedIds());
+    });
+
+    despawnAllButton.addEventListener("click", () => {
+      window.petOverlay.despawnAll();
+    });
+
+    function pushSettings() {
+      window.petOverlay.updateOverlaySettings({
+        movementEnabled: movement.checked,
+        collisionsEnabled: collisions.checked,
+        speedMultiplier: Number(speed.value)
+      });
+      speedValue.textContent = `${Number(speed.value).toFixed(2)}x`;
+    }
+
+    movement.addEventListener("change", pushSettings);
+    collisions.addEventListener("change", pushSettings);
+    speed.addEventListener("input", pushSettings);
+
+    window.petOverlay.onState((nextState) => {
+      state = nextState;
+      render();
+    });
+
+    window.petOverlay.requestState();
+  </script>
+</body>
+</html>

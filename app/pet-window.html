@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pet Window</title>
+  <style>
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: transparent;
+      user-select: none;
+    }
+
+    .pet {
+      position: absolute;
+      left: 36px;
+      top: 36px;
+      width: 192px;
+      height: 208px;
+      background-repeat: no-repeat;
+      background-size: 1536px 1872px;
+      filter: drop-shadow(0 14px 12px rgba(0, 0, 0, 0.3));
+      transform-origin: 0 0;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .pet.dragging {
+      cursor: grabbing;
+    }
+
+    .label {
+      position: absolute;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: rgba(12, 14, 18, 0.72);
+      color: rgba(255, 255, 255, 0.92);
+      font: 11px/15px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .pet-menu {
+      position: fixed;
+      z-index: 1000;
+      left: 8px;
+      top: 8px;
+      min-width: 138px;
+      padding: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 7px;
+      background: rgba(18, 20, 24, 0.88);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+      backdrop-filter: blur(14px);
+    }
+
+    .pet-menu[hidden] {
+      display: none;
+    }
+
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 5px;
+      background: transparent;
+      color: white;
+      text-align: left;
+      padding: 7px 8px;
+      font: 12px/16px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .menu-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+  <section id="pet" class="pet" aria-label="Pet">
+    <div id="label" class="label"></div>
+  </section>
+  <div id="pet-menu" class="pet-menu" hidden>
+    <div class="menu-row">
+      <button id="smaller" type="button">Smaller</button>
+      <button id="larger" type="button">Larger</button>
+    </div>
+    <button id="reset-size" type="button">Reset size</button>
+    <button id="despawn" type="button">Despawn pet</button>
+  </div>
+
+  <script>
+    const CELL_W = 192;
+    const CELL_H = 208;
+    const COLS = 8;
+    const IDLE_ROW = 0;
+    const RUN_RIGHT_ROW = 1;
+    const RUN_LEFT_ROW = 2;
+    const ROW_FRAME_COUNTS = {
+      0: 6,
+      1: 8,
+      2: 8,
+      3: 4,
+      4: 5,
+      5: 8,
+      6: 6,
+      7: 6,
+      8: 6
+    };
+
+    const pet = document.getElementById("pet");
+    const label = document.getElementById("label");
+    const menu = document.getElementById("pet-menu");
+    const despawn = document.getElementById("despawn");
+    const smaller = document.getElementById("smaller");
+    const larger = document.getElementById("larger");
+    const resetSize = document.getElementById("reset-size");
+
+    let frame = 0;
+    let row = IDLE_ROW;
+    let vx = 0;
+    let vy = 0;
+    let motionState = "idle";
+    let forcedRow = IDLE_ROW;
+    let lastFrameAt = performance.now();
+    let activePointerId = null;
+
+    function screenPoint(event) {
+      return { x: Math.round(event.screenX), y: Math.round(event.screenY) };
+    }
+
+    function hideMenu() {
+      menu.hidden = true;
+    }
+
+    window.petOverlay.onConfig((config) => {
+      pet.style.backgroundImage = `url("${config.sprite}")`;
+      pet.style.transform = `scale(${config.scale})`;
+      pet.setAttribute("aria-label", `${config.displayName} pet`);
+      label.textContent = config.displayName;
+    });
+
+    window.petOverlay.onMotion((motion) => {
+      vx = motion.vx;
+      vy = motion.vy;
+      motionState = motion.state || "move";
+      forcedRow = Number.isInteger(motion.row) ? motion.row : IDLE_ROW;
+    });
+
+    pet.addEventListener("pointerdown", (event) => {
+      if (event.button === 2) {
+        event.preventDefault();
+        window.petOverlay.stop();
+        menu.hidden = false;
+        return;
+      }
+      if (event.button !== 0) return;
+      hideMenu();
+      activePointerId = event.pointerId;
+      pet.setPointerCapture(event.pointerId);
+      pet.classList.add("dragging");
+      window.petOverlay.dragStart(screenPoint(event));
+    });
+
+    pet.addEventListener("pointermove", (event) => {
+      if (activePointerId !== event.pointerId) return;
+      window.petOverlay.dragMove(screenPoint(event));
+    });
+
+    pet.addEventListener("pointerup", (event) => {
+      if (activePointerId !== event.pointerId) return;
+      if (pet.hasPointerCapture(event.pointerId)) pet.releasePointerCapture(event.pointerId);
+      activePointerId = null;
+      pet.classList.remove("dragging");
+      window.petOverlay.dragEnd();
+    });
+
+    pet.addEventListener("pointercancel", () => {
+      activePointerId = null;
+      pet.classList.remove("dragging");
+      window.petOverlay.dragEnd();
+    });
+
+    pet.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      window.petOverlay.stop();
+      menu.hidden = false;
+    });
+
+    smaller.addEventListener("click", () => window.petOverlay.resize("smaller"));
+    larger.addEventListener("click", () => window.petOverlay.resize("larger"));
+    resetSize.addEventListener("click", () => window.petOverlay.resetSize());
+    despawn.addEventListener("click", () => window.petOverlay.despawn());
+    document.addEventListener("pointerdown", (event) => {
+      if (!menu.hidden && !menu.contains(event.target) && event.target !== pet) hideMenu();
+    });
+
+    function tick(now) {
+      if (now - lastFrameAt >= (motionState === "stopped" ? 150 : 105)) {
+        frame = (frame + 1) % COLS;
+        lastFrameAt = now;
+      }
+      const speed = Math.hypot(vx, vy);
+      if (motionState === "stopped" || motionState === "interact") {
+        row = forcedRow;
+      } else {
+        row = speed <= 16 ? IDLE_ROW : (vx >= 0 ? RUN_RIGHT_ROW : RUN_LEFT_ROW);
+      }
+      frame %= ROW_FRAME_COUNTS[row] || COLS;
+      pet.style.backgroundPosition = `-${frame * CELL_W}px -${row * CELL_H}px`;
+      requestAnimationFrame(tick);
+    }
+
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>

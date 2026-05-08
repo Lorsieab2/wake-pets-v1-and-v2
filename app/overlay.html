@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Koji and Palkia Overlay</title>
+  <style>
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: transparent;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .pet {
+      position: absolute;
+      width: 192px;
+      height: 208px;
+      background-repeat: no-repeat;
+      background-size: 1536px 1872px;
+      filter: drop-shadow(0 14px 12px rgba(0, 0, 0, 0.3));
+      transform-origin: 50% 85%;
+      pointer-events: auto;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .pet.despawned {
+      display: none;
+    }
+
+    .pet.dragging {
+      cursor: grabbing;
+    }
+
+    .label {
+      position: absolute;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: rgba(12, 14, 18, 0.72);
+      color: rgba(255, 255, 255, 0.92);
+      font: 11px/15px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .controls {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      display: flex;
+      gap: 8px;
+      pointer-events: auto;
+      opacity: 0.18;
+      transition: opacity 120ms ease;
+    }
+
+    .controls:hover {
+      opacity: 1;
+    }
+
+    button {
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 7px;
+      background: rgba(18, 20, 24, 0.72);
+      color: white;
+      padding: 5px 9px;
+      font: 12px/16px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      backdrop-filter: blur(12px);
+    }
+
+    .pet-menu {
+      position: fixed;
+      z-index: 100000;
+      min-width: 128px;
+      padding: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 7px;
+      background: rgba(18, 20, 24, 0.86);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+      backdrop-filter: blur(14px);
+      pointer-events: auto;
+    }
+
+    .pet-menu[hidden] {
+      display: none;
+    }
+
+    .pet-menu button {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      text-align: left;
+      padding: 7px 8px;
+    }
+
+    .pet-menu button:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+  </style>
+</head>
+<body>
+  <div id="stage"></div>
+  <div id="pet-menu" class="pet-menu" hidden>
+    <button id="despawn" type="button">Despawn pet</button>
+  </div>
+  <div class="controls">
+    <button id="scatter" type="button">Scatter</button>
+    <button id="close" type="button">Close pets</button>
+  </div>
+
+  <script>
+    const CELL_W = 192;
+    const CELL_H = 208;
+    const COLS = 8;
+    const IDLE_ROW = 0;
+    const RUN_RIGHT_ROW = 1;
+    const RUN_LEFT_ROW = 2;
+    const MIN_THROW_SPEED = 36;
+    const MAX_THROW_SPEED = 360;
+    const POINTER_RELEASE_DELAY_MS = 180;
+    const POINTER_FAILSAFE_MS = 650;
+
+    const pets = [];
+
+    const stage = document.getElementById("stage");
+    const petMenu = document.getElementById("pet-menu");
+    const despawnButton = document.getElementById("despawn");
+    let activeDrag = null;
+    let menuPet = null;
+    let pointerReleaseTimer = 0;
+    let pointerFailsafeTimer = 0;
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function setPointerInteractive(value) {
+      clearTimeout(pointerReleaseTimer);
+      clearTimeout(pointerFailsafeTimer);
+      window.petOverlay.setPointerInteractive(value);
+      if (value) {
+        pointerFailsafeTimer = setTimeout(() => {
+          if (!activeDrag && petMenu.hidden) window.petOverlay.setPointerInteractive(false);
+        }, POINTER_FAILSAFE_MS);
+      }
+    }
+
+    function releasePointerSoon() {
+      clearTimeout(pointerReleaseTimer);
+      clearTimeout(pointerFailsafeTimer);
+      pointerReleaseTimer = setTimeout(() => {
+        if (!activeDrag && petMenu.hidden) window.petOverlay.setPointerInteractive(false);
+      }, POINTER_RELEASE_DELAY_MS);
+    }
+
+    function setVelocityFromAngle(pet, angle, speed) {
+      pet.vx = Math.cos(angle) * speed;
+      pet.vy = Math.sin(angle) * speed;
+    }
+
+    function randomRange(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function speedOf(pet) {
+      return Math.hypot(pet.vx, pet.vy);
+    }
+
+    function normalizeVelocity(pet, targetSpeed, rate) {
+      const speed = speedOf(pet);
+      if (speed < 0.01) {
+        setVelocityFromAngle(pet, Math.random() * Math.PI * 2, targetSpeed);
+        return;
+      }
+      const nextSpeed = speed + (targetSpeed - speed) * rate;
+      pet.vx = pet.vx / speed * nextSpeed;
+      pet.vy = pet.vy / speed * nextSpeed;
+    }
+
+    function closePetMenu() {
+      petMenu.hidden = true;
+      menuPet = null;
+      releasePointerSoon();
+    }
+
+    function openPetMenu(pet, event) {
+      menuPet = pet;
+      petMenu.hidden = false;
+      const menuWidth = 144;
+      const menuHeight = 42;
+      petMenu.style.left = `${clamp(event.clientX, 4, window.innerWidth - menuWidth - 4)}px`;
+      petMenu.style.top = `${clamp(event.clientY, 4, window.innerHeight - menuHeight - 4)}px`;
+      setPointerInteractive(true);
+    }
+
+    function createPet(pet) {
+      if (pets.some((existing) => existing.id === pet.id && !existing.despawned)) return;
+      const el = document.createElement("section");
+      el.className = "pet";
+      el.style.backgroundImage = `url("${pet.sprite}")`;
+      el.setAttribute("aria-label", `${pet.displayName} pet`);
+      el.innerHTML = `<div class="label">${pet.displayName}</div>`;
+      stage.appendChild(el);
+      pet.scale ??= pet.id === "palkia" ? 0.64 : 0.58;
+      pet.x ??= randomRange(40, Math.max(41, window.innerWidth - CELL_W * pet.scale - 40));
+      pet.y ??= randomRange(40, Math.max(41, window.innerHeight - CELL_H * pet.scale - 80));
+      pet.defaultSpeed ??= randomRange(78, 92);
+      pet.phase ??= Math.floor(Math.random() * COLS);
+      setVelocityFromAngle(pet, Math.random() * Math.PI * 2, pet.defaultSpeed * randomRange(0.85, 1.15));
+      pet.el = el;
+      pet.frame = pet.phase;
+      pet.row = IDLE_ROW;
+      pet.despawned = false;
+      pets.push(pet);
+
+      el.addEventListener("pointerenter", () => setPointerInteractive(true));
+      el.addEventListener("pointerleave", () => {
+        if (!activeDrag && petMenu.hidden) releasePointerSoon();
+      });
+      el.addEventListener("pointerdown", (event) => {
+        if (event.button === 2) {
+          event.preventDefault();
+          openPetMenu(pet, event);
+          return;
+        }
+        if (event.button !== 0) return;
+        closePetMenu();
+        el.setPointerCapture(event.pointerId);
+        el.classList.add("dragging");
+        activeDrag = {
+          pet,
+          pointerId: event.pointerId,
+          dx: event.clientX - pet.x,
+          dy: event.clientY - pet.y,
+          lastX: event.clientX,
+          lastY: event.clientY,
+          lastT: performance.now()
+        };
+        setPointerInteractive(true);
+      });
+      el.addEventListener("pointermove", (event) => {
+        if (!activeDrag) setPointerInteractive(true);
+        if (!activeDrag || activeDrag.pet !== pet || activeDrag.pointerId !== event.pointerId) return;
+        setPointerInteractive(true);
+        const now = performance.now();
+        const dt = Math.max(16, now - activeDrag.lastT);
+        pet.vx = (event.clientX - activeDrag.lastX) / dt * 1000;
+        pet.vy = (event.clientY - activeDrag.lastY) / dt * 1000;
+        pet.x = event.clientX - activeDrag.dx;
+        pet.y = event.clientY - activeDrag.dy;
+        activeDrag.lastX = event.clientX;
+        activeDrag.lastY = event.clientY;
+        activeDrag.lastT = now;
+      });
+      el.addEventListener("pointerup", (event) => {
+        if (activeDrag?.pointerId !== event.pointerId) return;
+        if (el.hasPointerCapture(event.pointerId)) el.releasePointerCapture(event.pointerId);
+        el.classList.remove("dragging");
+        const throwSpeed = clamp(speedOf(pet), MIN_THROW_SPEED, MAX_THROW_SPEED);
+        normalizeVelocity(pet, throwSpeed, 1);
+        activeDrag = null;
+        releasePointerSoon();
+      });
+      el.addEventListener("pointercancel", (event) => {
+        if (activeDrag?.pointerId !== event.pointerId) return;
+        el.classList.remove("dragging");
+        activeDrag = null;
+        releasePointerSoon();
+      });
+      el.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        openPetMenu(pet, event);
+      });
+    }
+
+    function boundsFor(pet) {
+      return {
+        width: CELL_W * pet.scale,
+        height: CELL_H * pet.scale
+      };
+    }
+
+    function bounce(pet) {
+      const b = boundsFor(pet);
+      const maxX = window.innerWidth - b.width;
+      const maxY = window.innerHeight - b.height;
+      let hitX = 0;
+      let hitY = 0;
+      if (pet.x < 0 || pet.x > maxX) {
+        hitX = pet.x < 0 ? 1 : -1;
+        pet.x = clamp(pet.x, 0, maxX);
+      }
+      if (pet.y < 0 || pet.y > maxY) {
+        hitY = pet.y < 0 ? 1 : -1;
+        pet.y = clamp(pet.y, 0, maxY);
+      }
+      if (hitX || hitY) {
+        const baseAngle = Math.atan2(hitY, hitX);
+        const spread = hitX && hitY ? 0.9 : 1.25;
+        const angle = baseAngle + randomRange(-spread, spread);
+        const slowed = clamp(speedOf(pet) * randomRange(0.38, 0.62), pet.defaultSpeed * 0.42, pet.defaultSpeed * 0.86);
+        setVelocityFromAngle(pet, angle, slowed);
+      }
+    }
+
+    function render(pet) {
+      if (pet.despawned) return;
+      const speed = Math.hypot(pet.vx, pet.vy);
+      pet.row = speed > 16 ? (pet.vx >= 0 ? RUN_RIGHT_ROW : RUN_LEFT_ROW) : IDLE_ROW;
+      pet.el.style.left = `${pet.x}px`;
+      pet.el.style.top = `${pet.y}px`;
+      pet.el.style.backgroundPosition = `-${pet.frame * CELL_W}px -${pet.row * CELL_H}px`;
+      pet.el.style.transform = `scale(${pet.scale})`;
+      pet.el.style.zIndex = String(1000 + Math.round(pet.y));
+    }
+
+    let last = performance.now();
+    let frameClock = 0;
+
+    function tick(now) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      frameClock += dt;
+      const advance = frameClock >= 0.105;
+
+      for (const pet of pets) {
+        if (pet.despawned) continue;
+        if (activeDrag?.pet !== pet) {
+          pet.x += pet.vx * dt;
+          pet.y += pet.vy * dt;
+          pet.vx += Math.sin(now / 700 + pet.phase) * 5 * dt;
+          pet.vy += Math.cos(now / 900 + pet.phase) * 4 * dt;
+          bounce(pet);
+          normalizeVelocity(pet, pet.defaultSpeed, Math.min(1, dt * 0.55));
+        }
+        if (advance) pet.frame = (pet.frame + 1) % COLS;
+        render(pet);
+      }
+
+      if (advance) frameClock = 0;
+      requestAnimationFrame(tick);
+    }
+
+    despawnButton.addEventListener("click", () => {
+      if (menuPet) {
+        menuPet.despawned = true;
+        menuPet.el.classList.add("despawned");
+      }
+      closePetMenu();
+    });
+    petMenu.addEventListener("pointerenter", () => setPointerInteractive(true));
+    petMenu.addEventListener("pointerleave", releasePointerSoon);
+    document.addEventListener("pointerdown", (event) => {
+      if (!petMenu.hidden && !petMenu.contains(event.target)) {
+        closePetMenu();
+        return;
+      }
+      if (event.target === document.body || event.target === stage) releasePointerSoon();
+    });
+    document.getElementById("scatter").addEventListener("pointerenter", () => setPointerInteractive(true));
+    document.getElementById("close").addEventListener("pointerenter", () => setPointerInteractive(true));
+    document.getElementById("scatter").addEventListener("click", () => {
+      for (const pet of pets) {
+        if (pet.despawned) continue;
+        pet.x = Math.random() * Math.max(1, window.innerWidth - CELL_W * pet.scale);
+        pet.y = Math.random() * Math.max(1, window.innerHeight - CELL_H * pet.scale);
+        setVelocityFromAngle(pet, Math.random() * Math.PI * 2, pet.defaultSpeed * randomRange(0.8, 1.25));
+      }
+      releasePointerSoon();
+    });
+    document.getElementById("close").addEventListener("click", () => window.petOverlay.close());
+
+    window.petOverlay.onAddPets((incomingPets) => {
+      for (const pet of incomingPets) createPet(pet);
+    });
+    window.petOverlay.setPointerInteractive(false);
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>
