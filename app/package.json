@@ -5,7 +5,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "config": "electron . --config"
+    "config": "electron . --config",
+    "check": "node --check main.js && node --check preload.js"
   },
   "dependencies": {
     "electron": "^41.2.0"

@@ -63,6 +63,10 @@
     const IDLE_ROW = 0;
     const RUN_RIGHT_ROW = 1;
     const RUN_LEFT_ROW = 2;
+    const ACTIVE_FRAME_MS = 105;
+    const IDLE_FRAME_MS = 160;
+    const IDLE_BURST_MIN_DELAY_MS = 4500;
+    const IDLE_BURST_MAX_DELAY_MS = 11000;
     const ROW_FRAME_COUNTS = {
       0: 6,
       1: 8,
@@ -87,6 +91,27 @@
     let idleAnimationSpeed = 1;
     let lastFrameAt = performance.now();
     let activePointerId = null;
+    let isHovered = false;
+    let idleBursting = false;
+    let idleBurstFramesRemaining = 0;
+    let nextIdleBurstAt = 0;
+    let facingRow = RUN_RIGHT_ROW;
+
+    function randomRange(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function scheduleNextIdleBurst(now = performance.now()) {
+      idleBursting = false;
+      idleBurstFramesRemaining = 0;
+      nextIdleBurstAt = now + randomRange(IDLE_BURST_MIN_DELAY_MS, IDLE_BURST_MAX_DELAY_MS);
+    }
+
+    function nonRunningRow(value) {
+      return value === RUN_RIGHT_ROW || value === RUN_LEFT_ROW ? IDLE_ROW : value;
+    }
+
+    scheduleNextIdleBurst(lastFrameAt);
 
     function screenPoint(event) {
       return { x: Math.round(event.screenX), y: Math.round(event.screenY) };
@@ -102,14 +127,36 @@
     window.petOverlay.onMotion((motion) => {
       vx = motion.vx;
       vy = motion.vy;
-      motionState = motion.state || "move";
-      forcedRow = Number.isInteger(motion.row) ? motion.row : IDLE_ROW;
+      const nextMotionState = motion.state || "move";
+      const nextForcedRow = Number.isInteger(motion.row) ? motion.row : IDLE_ROW;
+      if (motionState !== nextMotionState || forcedRow !== nextForcedRow) {
+        frame = 0;
+        lastFrameAt = performance.now();
+        scheduleNextIdleBurst(lastFrameAt);
+      }
+      motionState = nextMotionState;
+      forcedRow = nextForcedRow;
+      label.hidden = motion.showNames === false;
       idleAnimationSpeed = Number.isFinite(motion.idleAnimationSpeed) ? motion.idleAnimationSpeed : 1;
+    });
+
+    pet.addEventListener("pointerenter", () => {
+      isHovered = true;
+      idleBursting = false;
+      idleBurstFramesRemaining = 0;
+    });
+
+    pet.addEventListener("pointerleave", () => {
+      if (activePointerId !== null) return;
+      isHovered = false;
+      frame = 0;
+      scheduleNextIdleBurst();
     });
 
     pet.addEventListener("pointerdown", (event) => {
       if (event.button !== 0) return;
       activePointerId = event.pointerId;
+      isHovered = true;
       pet.setPointerCapture(event.pointerId);
       pet.classList.add("dragging");
       window.petOverlay.dragStart(screenPoint(event));
@@ -124,12 +171,14 @@
       if (activePointerId !== event.pointerId) return;
       if (pet.hasPointerCapture(event.pointerId)) pet.releasePointerCapture(event.pointerId);
       activePointerId = null;
+      isHovered = pet.matches(":hover");
       pet.classList.remove("dragging");
       window.petOverlay.dragEnd();
     });
 
     pet.addEventListener("pointercancel", () => {
       activePointerId = null;
+      isHovered = pet.matches(":hover");
       pet.classList.remove("dragging");
       window.petOverlay.dragEnd();
     });
@@ -141,18 +190,49 @@
 
     function tick(now) {
       const speed = Math.hypot(vx, vy);
-      const usesIdleTiming = motionState !== "move" || speed <= 16;
-      const frameMs = (usesIdleTiming ? 150 : 105) / Math.max(0.25, idleAnimationSpeed);
-      if (now - lastFrameAt >= frameMs) {
-        frame = (frame + 1) % COLS;
+      const isDragged = motionState === "drag";
+      const isMoving = motionState === "move" && speed > 16;
+      const activePlayback = isHovered || isDragged || isMoving;
+      if (Math.abs(vx) > 4) facingRow = vx >= 0 ? RUN_RIGHT_ROW : RUN_LEFT_ROW;
+
+      const nextRow = motionState === "stopped" || motionState === "interact"
+        ? nonRunningRow(forcedRow)
+        : (isMoving || isDragged ? facingRow : IDLE_ROW);
+      if (row !== nextRow) {
+        row = nextRow;
+        frame = 0;
         lastFrameAt = now;
       }
-      if (motionState === "stopped" || motionState === "interact") {
-        row = forcedRow;
+
+      const frameCount = ROW_FRAME_COUNTS[row] || COLS;
+      const frameMs = ((isMoving || isDragged) ? ACTIVE_FRAME_MS : IDLE_FRAME_MS) / Math.max(0.25, idleAnimationSpeed);
+
+      if (activePlayback) {
+        idleBursting = false;
+        idleBurstFramesRemaining = 0;
+        if (now - lastFrameAt >= frameMs) {
+          frame = (frame + 1) % frameCount;
+          lastFrameAt = now;
+        }
       } else {
-        row = speed <= 16 ? IDLE_ROW : (vx >= 0 ? RUN_RIGHT_ROW : RUN_LEFT_ROW);
+        if (!idleBursting && now >= nextIdleBurstAt) {
+          idleBursting = true;
+          idleBurstFramesRemaining = frameCount;
+          lastFrameAt = now;
+        }
+        if (idleBursting && now - lastFrameAt >= frameMs) {
+          frame = (frame + 1) % frameCount;
+          idleBurstFramesRemaining -= 1;
+          lastFrameAt = now;
+          if (idleBurstFramesRemaining <= 0) {
+            frame = 0;
+            scheduleNextIdleBurst(now);
+          }
+        } else if (!idleBursting) {
+          frame = 0;
+        }
       }
-      frame %= ROW_FRAME_COUNTS[row] || COLS;
+      frame %= frameCount;
       pet.style.backgroundPosition = `-${frame * CELL_W}px -${row * CELL_H}px`;
       requestAnimationFrame(tick);
     }

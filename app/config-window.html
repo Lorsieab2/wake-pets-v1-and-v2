@@ -327,6 +327,13 @@
       </label>
       <label class="setting">
         <span class="setting-copy">
+          <span class="setting-title">Show names</span>
+          <span class="setting-hint">Display each pet's name below its sprite.</span>
+        </span>
+        <span class="setting-control"><input id="show-names" type="checkbox"></span>
+      </label>
+      <label class="setting">
+        <span class="setting-copy">
           <span class="setting-title">Movement speed</span>
           <span class="setting-hint">Controls how quickly pets travel.</span>
         </span>
@@ -355,6 +362,7 @@
     const despawnAllButton = document.getElementById("despawn-all");
     const movement = document.getElementById("movement");
     const collisions = document.getElementById("collisions");
+    const showNames = document.getElementById("show-names");
     const speed = document.getElementById("speed");
     const speedValue = document.getElementById("speed-value");
     const idleAnimationSpeed = document.getElementById("idle-animation-speed");
@@ -379,13 +387,22 @@
       return `${Math.round(Number(value) * 100)}%`;
     }
 
+    function relativeSizeForScale(scale, defaultScale) {
+      return Number.isFinite(scale) && Number.isFinite(defaultScale) && defaultScale > 0 ? scale / defaultScale : 1;
+    }
+
+    function scaleForRelativeSize(relativeSize, defaultScale) {
+      return Number.isFinite(relativeSize) && Number.isFinite(defaultScale) && defaultScale > 0 ? relativeSize * defaultScale : NaN;
+    }
+
     function render() {
       const running = new Set(state.runningPets);
-      const petDetails = new Map((state.runningPetDetails || []).map((pet) => [pet.id, Number(pet.scale)]));
-      const scaleLimits = state.petScaleLimits || { min: 0.36, max: 1.08, step: 0.02 };
+      const petDetails = new Map((state.runningPetDetails || []).map((pet) => [pet.id, pet]));
+      const scaleLimits = state.petScaleLimits || { min: 0.25, max: 1.75, step: 0.01 };
       const settings = state.overlaySettings || {};
-      movement.checked = settings.movementEnabled !== false;
+      movement.checked = settings.movementEnabled === true;
       collisions.checked = settings.collisionsEnabled !== false;
+      showNames.checked = settings.showNames !== false;
       speed.value = settings.speedMultiplier || 1;
       speedValue.textContent = formatMultiplier(speed.value);
       idleAnimationSpeed.value = settings.idleAnimationSpeed || 1;
@@ -393,8 +410,10 @@
       petsEl.innerHTML = "";
       for (const pet of state.installedPets) {
         const isRunning = running.has(pet.id);
-        const scale = petDetails.get(pet.id);
-        const currentScale = Number.isFinite(scale) ? scale : 0.58;
+        const detail = petDetails.get(pet.id) || {};
+        const scale = Number(detail.scale);
+        const defaultScale = Number(detail.defaultScale || pet.defaultScale);
+        const currentSize = relativeSizeForScale(scale, defaultScale);
         const id = escapeHtml(pet.id);
         const displayName = escapeHtml(pet.displayName);
         const row = document.createElement("section");
@@ -405,8 +424,8 @@
           <div class="status ${isRunning ? "running" : ""}">${isRunning ? "Running" : "Sleeping"}</div>
           <label class="size-control">
             <span>Size</span>
-            <input data-pet-scale="${id}" type="range" min="${scaleLimits.min}" max="${scaleLimits.max}" step="${scaleLimits.step}" value="${currentScale}" ${isRunning ? "" : "disabled"}>
-            <span class="scale-value">${formatScale(currentScale)}</span>
+            <input data-pet-scale="${id}" data-default-scale="${defaultScale}" type="range" min="${scaleLimits.min}" max="${scaleLimits.max}" step="${scaleLimits.step}" value="${currentSize}" ${isRunning ? "" : "disabled"}>
+            <span class="scale-value">${formatScale(currentSize)}</span>
           </label>
           ${isRunning ? `<button data-despawn="${id}" class="pet-action" type="button">Despawn</button>` : `<button data-wake="${id}" class="pet-action primary" type="button">Wake</button>`}
         `;
@@ -425,10 +444,10 @@
     petsEl.addEventListener("input", (event) => {
       const id = event.target.dataset?.petScale;
       if (!id) return;
-      const scale = Number(event.target.value);
+      const scale = scaleForRelativeSize(Number(event.target.value), Number(event.target.dataset.defaultScale));
       window.petOverlay.setPetScale(id, scale);
       const value = event.target.closest(".size-control")?.querySelector(".scale-value");
-      if (value) value.textContent = formatScale(scale);
+      if (value) value.textContent = formatScale(event.target.value);
     });
 
     spawnButton.addEventListener("click", () => {
@@ -443,6 +462,7 @@
       window.petOverlay.updateOverlaySettings({
         movementEnabled: movement.checked,
         collisionsEnabled: collisions.checked,
+        showNames: showNames.checked,
         speedMultiplier: Number(speed.value),
         idleAnimationSpeed: Number(idleAnimationSpeed.value)
       });
@@ -452,6 +472,7 @@
 
     movement.addEventListener("change", pushSettings);
     collisions.addEventListener("change", pushSettings);
+    showNames.addEventListener("change", pushSettings);
     speed.addEventListener("input", pushSettings);
     idleAnimationSpeed.addEventListener("input", pushSettings);
 

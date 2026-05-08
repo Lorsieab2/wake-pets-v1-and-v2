@@ -6,22 +6,27 @@ const path = require("node:path");
 const CELL_W = 192;
 const CELL_H = 208;
 const PET_WINDOW_PAD = 0;
-const MIN_SCALE = 0.36;
-const MAX_SCALE = 1.08;
+const MIN_SCALE_MULTIPLIER = 0.25;
+const MAX_SCALE_MULTIPLIER = 1.75;
 const SCALE_STEP = 0.08;
+const DEFAULT_SCALE = 0.46;
+const LARGE_PET_DEFAULT_SCALE = 0.52;
+const DEFAULT_SPEED_MIN = 52;
+const DEFAULT_SPEED_MAX = 64;
 const COLLISION_PAUSE_MIN_MS = 2600;
 const COLLISION_PAUSE_MAX_MS = 4200;
 const COLLISION_COOLDOWN_MS = 1800;
 const DROP_IDLE_SPEED = 48;
 const INTERACTION_ROWS = [0, 3, 4, 5];
-const STOPPED_ROWS = [0, 3, 4, 5, 6, 8];
-const STOPPED_ROW_CHANGE_MIN_MS = 1800;
-const STOPPED_ROW_CHANGE_MAX_MS = 3400;
+const STOPPED_ROWS = INTERACTION_ROWS;
+const STOPPED_ROW_CHANGE_MIN_MS = 14000;
+const STOPPED_ROW_CHANGE_MAX_MS = 30000;
 const REQUEST_FILE = path.join(os.tmpdir(), "native-multi-pet-overlay-add.json");
 const pets = new Map();
 const overlaySettings = {
-  movementEnabled: true,
+  movementEnabled: false,
   collisionsEnabled: true,
+  showNames: true,
   speedMultiplier: 1,
   idleAnimationSpeed: 1
 };
@@ -57,6 +62,10 @@ function petPayload(id) {
     displayName: manifest.displayName || manifest.id || id,
     sprite: `file://${path.join(petDir, spritesheetPath)}`
   };
+}
+
+function defaultScaleForPet(id) {
+  return id === "palkia" ? LARGE_PET_DEFAULT_SCALE : DEFAULT_SCALE;
 }
 
 function installedPets() {
@@ -194,10 +203,15 @@ function sendPetConfig(pet) {
 
 function overlayState() {
   return {
-    installedPets: installedPets().map((pet) => ({ id: pet.id, displayName: pet.displayName, sprite: pet.sprite })),
+    installedPets: installedPets().map((pet) => ({
+      id: pet.id,
+      displayName: pet.displayName,
+      sprite: pet.sprite,
+      defaultScale: defaultScaleForPet(pet.id)
+    })),
     runningPets: [...pets.keys()],
-    runningPetDetails: [...pets.values()].map((pet) => ({ id: pet.id, scale: pet.scale })),
-    petScaleLimits: { min: MIN_SCALE, max: MAX_SCALE, step: 0.02 },
+    runningPetDetails: [...pets.values()].map((pet) => ({ id: pet.id, scale: pet.scale, defaultScale: pet.defaultScale })),
+    petScaleLimits: { min: MIN_SCALE_MULTIPLIER, max: MAX_SCALE_MULTIPLIER, step: 0.01 },
     overlaySettings
   };
 }
@@ -260,7 +274,7 @@ function createPetWindow(id) {
   }
 
   const display = bounds();
-  const defaultScale = id === "palkia" ? 0.64 : 0.58;
+  const defaultScale = defaultScaleForPet(id);
   const { width, height } = petWindowSize(defaultScale);
   const pet = {
     ...payload,
@@ -272,17 +286,19 @@ function createPetWindow(id) {
     y: Math.round(randomRange(display.y + 40, display.y + display.height - height - 80)),
     vx: 0,
     vy: 0,
-    defaultSpeed: randomRange(78, 92),
+    defaultSpeed: randomRange(DEFAULT_SPEED_MIN, DEFAULT_SPEED_MAX),
     frame: Math.floor(Math.random() * 8),
     dragging: false,
-    pinned: false,
+    pinned: true,
+    movementSource: undefined,
     interactingUntil: 0,
     collisionCooldownUntil: 0,
     interactionRow: 0,
     stoppedRow: 0,
     stoppedRowUntil: 0
   };
-  setVelocityFromAngle(pet, Math.random() * Math.PI * 2, pet.defaultSpeed);
+  chooseStoppedRow(pet);
+  if (overlaySettings.movementEnabled) startPetMovement(pet);
 
   const win = new BrowserWindow({
     x: pet.x,
@@ -341,13 +357,22 @@ function stopPet(pet) {
   pet.vx = 0;
   pet.vy = 0;
   pet.pinned = true;
+  pet.movementSource = undefined;
   pet.interactingUntil = 0;
   chooseStoppedRow(pet);
 }
 
+function startPetMovement(pet) {
+  if (pet.dragging) return;
+  pet.pinned = false;
+  pet.movementSource = "auto";
+  pet.interactingUntil = 0;
+  setVelocityFromAngle(pet, Math.random() * Math.PI * 2, pet.defaultSpeed * randomRange(0.9, 1.15));
+}
+
 function setPetScale(pet, scale, shouldBroadcast = false) {
   const oldCenter = centerOf(pet);
-  const nextScale = clamp(scale, MIN_SCALE, MAX_SCALE);
+  const nextScale = clamp(scale, pet.defaultScale * MIN_SCALE_MULTIPLIER, pet.defaultScale * MAX_SCALE_MULTIPLIER);
   const nextSize = petWindowSize(nextScale);
   pet.scale = nextScale;
   pet.width = nextSize.width;
@@ -415,6 +440,11 @@ function tick() {
       const b = activePets[j];
       if (!overlaySettings.collisionsEnabled || a.dragging || b.dragging) continue;
       if (now < a.collisionCooldownUntil || now < b.collisionCooldownUntil) continue;
+      const aWasMoving = !a.pinned && speedOf(a) >= DROP_IDLE_SPEED;
+      const bWasMoving = !b.pinned && speedOf(b) >= DROP_IDLE_SPEED;
+      const aMovementSource = a.movementSource;
+      const bMovementSource = b.movementSource;
+      if (!aWasMoving && !bWasMoving) continue;
       if (!hitBoxesOverlap(petHitBox(a), petHitBox(b))) continue;
 
       const pauseMs = randomRange(COLLISION_PAUSE_MIN_MS, COLLISION_PAUSE_MAX_MS);
@@ -429,25 +459,35 @@ function tick() {
       b.vx = 0;
       b.vy = 0;
 
-      const runner = Math.random() > 0.5 ? a : b;
-      const other = runner === a ? b : a;
-      const runnerCenter = centerOf(runner);
-      const otherCenter = centerOf(other);
-      const fleeAngle = Math.atan2(runnerCenter.y - otherCenter.y, runnerCenter.x - otherCenter.x) + randomRange(-0.45, 0.45);
+      const aCenter = centerOf(a);
+      const bCenter = centerOf(b);
+      const aFleeAngle = Math.atan2(aCenter.y - bCenter.y, aCenter.x - bCenter.x) + randomRange(-0.45, 0.45);
+      const bFleeAngle = aFleeAngle + Math.PI + randomRange(-0.35, 0.35);
       setTimeout(() => {
-        if (!pets.has(runner.id) || runner.win?.isDestroyed()) return;
-        runner.pinned = false;
-        other.pinned = false;
-        setVelocityFromAngle(runner, fleeAngle, runner.defaultSpeed * randomRange(2.0, 2.65));
-        setVelocityFromAngle(other, fleeAngle + Math.PI + randomRange(-0.35, 0.35), other.defaultSpeed * randomRange(0.55, 0.85));
+        if (!pets.has(a.id) || a.win?.isDestroyed() || !pets.has(b.id) || b.win?.isDestroyed()) return;
+        if (aWasMoving && (overlaySettings.movementEnabled || aMovementSource === "throw")) {
+          a.pinned = false;
+          a.movementSource = aMovementSource === "throw" ? "throw" : "auto";
+          setVelocityFromAngle(a, aFleeAngle, a.defaultSpeed * randomRange(1.35, 1.9));
+        } else {
+          stopPet(a);
+        }
+        if (bWasMoving && (overlaySettings.movementEnabled || bMovementSource === "throw")) {
+          b.pinned = false;
+          b.movementSource = bMovementSource === "throw" ? "throw" : "auto";
+          setVelocityFromAngle(b, bFleeAngle, b.defaultSpeed * randomRange(1.35, 1.9));
+        } else {
+          stopPet(b);
+        }
       }, pauseMs);
     }
   }
 
   for (const pet of activePets) {
     if (!pet.win || pet.win.isDestroyed()) continue;
+    if (!overlaySettings.movementEnabled && !pet.dragging && pet.movementSource === "auto") stopPet(pet);
     if (pet.pinned && now >= pet.stoppedRowUntil) chooseStoppedRow(pet, now);
-    if (!pet.dragging && !pet.pinned && now >= pet.interactingUntil && overlaySettings.movementEnabled) {
+    if (!pet.dragging && !pet.pinned && now >= pet.interactingUntil && (overlaySettings.movementEnabled || pet.movementSource === "throw")) {
       const movementDt = dt * overlaySettings.speedMultiplier;
       pet.x += pet.vx * movementDt;
       pet.y += pet.vy * movementDt;
@@ -460,9 +500,10 @@ function tick() {
     pet.win.webContents.send("pet-motion", {
       vx: pet.vx,
       vy: pet.vy,
+      showNames: overlaySettings.showNames,
       idleAnimationSpeed: overlaySettings.idleAnimationSpeed,
       row: now < pet.interactingUntil ? pet.interactionRow : (pet.pinned ? pet.stoppedRow : undefined),
-      state: now < pet.interactingUntil ? "interact" : (pet.pinned ? "stopped" : "move")
+      state: pet.dragging ? "drag" : (now < pet.interactingUntil ? "interact" : (pet.pinned ? "stopped" : "move"))
     });
   }
 }
@@ -497,6 +538,8 @@ ipcMain.on("pet-drag-start", (event, point) => {
   if (!pet) return;
   pet.dragging = true;
   pet.pinned = false;
+  pet.movementSource = undefined;
+  pet.interactingUntil = 0;
   pet.dragOffsetX = point.x - pet.x;
   pet.dragOffsetY = point.y - pet.y;
   pet.lastDragX = point.x;
@@ -528,10 +571,12 @@ ipcMain.on("pet-drag-end", (event) => {
     pet.vx = 0;
     pet.vy = 0;
     pet.pinned = true;
+    pet.movementSource = undefined;
     chooseStoppedRow(pet);
     return;
   }
   pet.pinned = false;
+  pet.movementSource = "throw";
   normalizeVelocity(pet, clamp(speedOf(pet), DROP_IDLE_SPEED, 360), 1);
 });
 
@@ -559,7 +604,7 @@ ipcMain.on("overlay-despawn-pet", (_event, id) => {
 
 ipcMain.on("overlay-set-pet-scale", (_event, id, scale) => {
   const pet = pets.get(id);
-  if (!pet || pet.win?.isDestroyed() || typeof scale !== "number") return;
+  if (!pet || pet.win?.isDestroyed() || !Number.isFinite(scale)) return;
   setPetScale(pet, scale);
 });
 
@@ -571,8 +616,16 @@ ipcMain.on("overlay-despawn-all", () => {
 
 ipcMain.on("overlay-update-settings", (_event, settings) => {
   if (!settings || typeof settings !== "object") return;
-  if (typeof settings.movementEnabled === "boolean") overlaySettings.movementEnabled = settings.movementEnabled;
+  if (typeof settings.movementEnabled === "boolean" && overlaySettings.movementEnabled !== settings.movementEnabled) {
+    overlaySettings.movementEnabled = settings.movementEnabled;
+    for (const pet of pets.values()) {
+      if (pet.win?.isDestroyed()) continue;
+      if (overlaySettings.movementEnabled && pet.pinned) startPetMovement(pet);
+      else if (!overlaySettings.movementEnabled && pet.movementSource === "auto") stopPet(pet);
+    }
+  }
   if (typeof settings.collisionsEnabled === "boolean") overlaySettings.collisionsEnabled = settings.collisionsEnabled;
+  if (typeof settings.showNames === "boolean") overlaySettings.showNames = settings.showNames;
   if (typeof settings.speedMultiplier === "number") overlaySettings.speedMultiplier = clamp(settings.speedMultiplier, 0.25, 2.5);
   if (typeof settings.idleAnimationSpeed === "number") overlaySettings.idleAnimationSpeed = clamp(settings.idleAnimationSpeed, 0.25, 2.5);
   broadcastState();
