@@ -1,6 +1,12 @@
 # Wake Pets
 
-Codex skill with a bundled native multi-pet overlay for installed Codex pets. It wakes multiple existing pet packages at once and shows each pet as its own draggable always-on-top desktop overlay.
+<img width="867" height="369" alt="demo" src="https://github.com/user-attachments/assets/3005b893-9134-41ba-ac3a-c2782c0d7416" />
+
+A Codex skill with a bundled native multi-pet overlay for installed Codex pets. It wakes multiple existing pet packages at once and shows each pet as its own draggable always-on-top desktop overlay.
+
+## Video Demo
+
+https://github.com/user-attachments/assets/84e5b78d-9920-4ba1-82e4-99d49723bf89
 
 This app does not create new pet art. Pets must already exist under:
 
