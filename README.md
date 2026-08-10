@@ -16,6 +16,7 @@ This fork is maintained from the upstream skill at [princejoogie/wake-pets](http
 - Fixed Windows sprite loading by converting filesystem paths with `pathToFileURL`.
 - Updated config previews and UI branding to `Wake Pets v1 and v2`.
 - Expanded the pet size range from 25%–175% to 25%–300% of each pet's base scale, with pets spawning at 175% by default.
+- Added quick size toggles for `100%` and `175%` in the configuration window.
 - Updated Electron from `41.5.0` to `41.10.3`, resolving the two Dependabot security advisories reported for the overlay runtime.
 - Uses rows `0` and `3`–`8` as stopped, stationary mouse-rollover, and collision animations, while reserving rows `1`–`2` for running directions and rows `9`–`10` for perspective views.
 

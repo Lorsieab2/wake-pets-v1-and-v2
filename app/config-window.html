@@ -289,6 +289,30 @@
       opacity: 0.45;
     }
 
+    .size-presets {
+      grid-column: 2 / 4;
+      display: flex;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .size-preset {
+      min-width: 64px;
+      padding: 4px 8px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .size-preset.active {
+      border-color: rgba(0, 122, 255, 0.56);
+      background: var(--blue);
+      color: white;
+    }
+
+    .size-preset:disabled {
+      opacity: 0.45;
+    }
+
     .pet-action {
       grid-column: 3;
       grid-row: 2;
@@ -427,6 +451,10 @@
             <input data-pet-scale="${id}" data-default-scale="${defaultScale}" type="range" min="${scaleLimits.min}" max="${scaleLimits.max}" step="${scaleLimits.step}" value="${currentSize}" ${isRunning ? "" : "disabled"}>
             <span class="scale-value">${formatScale(currentSize)}</span>
           </label>
+          <div class="size-presets" role="group" aria-label="Quick sizes">
+            <button class="size-preset ${Math.abs(currentSize - 1) < 0.005 ? "active" : ""}" data-pet-scale-preset="${id}" data-default-scale="${defaultScale}" data-size-preset="1" type="button" aria-pressed="${Math.abs(currentSize - 1) < 0.005}" ${isRunning ? "" : "disabled"}>100%</button>
+            <button class="size-preset ${Math.abs(currentSize - 1.75) < 0.005 ? "active" : ""}" data-pet-scale-preset="${id}" data-default-scale="${defaultScale}" data-size-preset="1.75" type="button" aria-pressed="${Math.abs(currentSize - 1.75) < 0.005}" ${isRunning ? "" : "disabled"}>175%</button>
+          </div>
           ${isRunning ? `<button data-despawn="${id}" class="pet-action" type="button">Despawn</button>` : `<button data-wake="${id}" class="pet-action primary" type="button">Wake</button>`}
         `;
         const preview = row.querySelector(".pet-preview");
@@ -437,9 +465,31 @@
       }
     }
 
+    function updateSizePresetState(row, value) {
+      for (const button of row.querySelectorAll("[data-pet-scale-preset]")) {
+        const active = Math.abs(Number(button.dataset.sizePreset) - Number(value)) < 0.005;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+      }
+    }
+
     petsEl.addEventListener("click", (event) => {
       const wakeId = event.target.dataset?.wake;
       const id = event.target.dataset?.despawn;
+      const presetId = event.target.dataset?.petScalePreset;
+      if (presetId) {
+        const size = Number(event.target.dataset.sizePreset);
+        const defaultScale = Number(event.target.dataset.defaultScale);
+        if (Number.isFinite(size) && Number.isFinite(defaultScale)) {
+          window.petOverlay.setPetScale(presetId, size * defaultScale);
+          const row = event.target.closest(".pet");
+          const slider = row?.querySelector("input[data-pet-scale]");
+          const value = row?.querySelector(".scale-value");
+          if (slider) slider.value = String(size);
+          if (value) value.textContent = formatScale(size);
+          if (row) updateSizePresetState(row, size);
+        }
+      }
       if (wakeId) window.petOverlay.spawnPets([wakeId]);
       if (id) window.petOverlay.despawnPet(id);
     });
@@ -451,6 +501,8 @@
       window.petOverlay.setPetScale(id, scale);
       const value = event.target.closest(".size-control")?.querySelector(".scale-value");
       if (value) value.textContent = formatScale(event.target.value);
+      const row = event.target.closest(".pet");
+      if (row) updateSizePresetState(row, Number(event.target.value));
     });
 
     spawnButton.addEventListener("click", () => {
