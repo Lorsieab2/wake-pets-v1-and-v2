@@ -6,9 +6,9 @@ A Codex skill with a bundled native multi-pet overlay for installed Codex pets.
 
 Supports legacy v1 8x9 atlases and v2 8x11 atlases.
 
-## Private Fork Changes
+## Fork Changes
 
-This private repository is maintained from the upstream skill at [princejoogie/wake-pets](https://github.com/princejoogie/wake-pets). It remains a drop-in replacement for the original `wake-pets` skill while documenting and carrying these changes:
+This fork is maintained from the upstream skill at [princejoogie/wake-pets](https://github.com/princejoogie/wake-pets). It remains a drop-in replacement for the original `wake-pets` skill while documenting and carrying these changes:
 
 - Added v2 validation for `spriteVersionNumber: 2` 8x11 atlases (`1536x2288`) alongside legacy v1 8x9 atlases (`1536x1872`).
 - Made runtime atlas geometry manifest-aware so v1 and v2 sheets render at the correct dimensions.
