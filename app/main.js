@@ -28,14 +28,16 @@ const MAX_SCALE_MULTIPLIER = 3;
 const SCALE_STEP = 0.08;
 const DEFAULT_SCALE = 0.46;
 const LARGE_PET_DEFAULT_SCALE = 0.52;
+const DEFAULT_SIZE_MULTIPLIER = 1.75;
 const DEFAULT_SPEED_MIN = 52;
 const DEFAULT_SPEED_MAX = 64;
 const COLLISION_PAUSE_MIN_MS = 2600;
 const COLLISION_PAUSE_MAX_MS = 4200;
 const COLLISION_COOLDOWN_MS = 1800;
 const DROP_IDLE_SPEED = 48;
-const INTERACTION_ROWS = [0, 3, 4, 5];
-const STOPPED_ROWS = [0, 3, 4, 5, 6, 7, 8];
+const IDLE_ROWS = [0, 3, 4, 5, 6, 7, 8];
+const INTERACTION_ROWS = IDLE_ROWS;
+const STOPPED_ROWS = IDLE_ROWS;
 const STOPPED_ROW_CHANGE_MIN_MS = 14000;
 const STOPPED_ROW_CHANGE_MAX_MS = 30000;
 const REQUEST_FILE = path.join(os.tmpdir(), "native-multi-pet-overlay-add.json");
@@ -210,7 +212,7 @@ function showPetMenu(pet) {
     {
       label: "Reset size",
       click: () => {
-        if (petStillOpen(pet)) setPetScale(pet, pet.defaultScale, true);
+        if (petStillOpen(pet)) setPetScale(pet, pet.spawnScale, true);
       }
     },
     {
@@ -315,12 +317,14 @@ function createPetWindow(id) {
   }
 
   const display = bounds();
-  const defaultScale = defaultScaleForPet(id);
-  const { width, height } = petWindowSize(defaultScale, payload.atlas);
+  const baseScale = defaultScaleForPet(id);
+  const spawnScale = baseScale * DEFAULT_SIZE_MULTIPLIER;
+  const { width, height } = petWindowSize(spawnScale, payload.atlas);
   const pet = {
     ...payload,
-    scale: defaultScale,
-    defaultScale,
+    scale: spawnScale,
+    defaultScale: baseScale,
+    spawnScale,
     width,
     height,
     x: Math.round(randomRange(display.x + 40, display.x + display.width - width - 40)),
@@ -693,7 +697,7 @@ ipcMain.on("pet-reset-size", (event) => {
   const pet = petForSender(event.sender);
   if (!pet) return;
   stopPet(pet);
-  setPetScale(pet, pet.defaultScale, true);
+  setPetScale(pet, pet.spawnScale, true);
 });
 
 ipcMain.on("pet-close-overlay", () => {

@@ -129,6 +129,7 @@
     const RUN_RIGHT_ROW = 1;
     const RUN_LEFT_ROW = 2;
     const IDLE_ROWS = [0, 3, 4, 5, 6, 7, 8];
+    const DEFAULT_SIZE_MULTIPLIER = 1.75;
     const MIN_THROW_SPEED = 36;
     const MAX_THROW_SPEED = 360;
     const POINTER_RELEASE_DELAY_MS = 180;
@@ -223,7 +224,7 @@
       el.setAttribute("aria-label", `${pet.displayName} pet`);
       el.innerHTML = `<div class="label">${pet.displayName}</div>`;
       stage.appendChild(el);
-      pet.scale ??= pet.id === "palkia" ? 0.64 : 0.58;
+      pet.scale ??= (pet.id === "palkia" ? 0.64 : 0.58) * DEFAULT_SIZE_MULTIPLIER;
       pet.x ??= randomRange(40, Math.max(41, window.innerWidth - atlas.cellWidth * pet.scale - 40));
       pet.y ??= randomRange(40, Math.max(41, window.innerHeight - atlas.cellHeight * pet.scale - 80));
       pet.defaultSpeed ??= randomRange(78, 92);
