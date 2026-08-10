@@ -68,6 +68,7 @@
     const IDLE_ROW = 0;
     const RUN_RIGHT_ROW = 1;
     const RUN_LEFT_ROW = 2;
+    const IDLE_ROWS = [0, 3, 4, 5, 6, 7, 8];
     const ACTIVE_FRAME_MS = 105;
     const IDLE_FRAME_MS = 160;
     const IDLE_BURST_MIN_DELAY_MS = 4500;
@@ -102,9 +103,14 @@
     let idleBurstFramesRemaining = 0;
     let nextIdleBurstAt = 0;
     let facingRow = RUN_RIGHT_ROW;
+    let hoverRow = IDLE_ROW;
 
     function randomRange(min, max) {
       return min + Math.random() * (max - min);
+    }
+
+    function randomIdleRow() {
+      return IDLE_ROWS[Math.floor(Math.random() * IDLE_ROWS.length)];
     }
 
     function scheduleNextIdleBurst(now = performance.now()) {
@@ -160,6 +166,7 @@
 
     pet.addEventListener("pointerenter", () => {
       isHovered = true;
+      if (motionState === "stopped") hoverRow = randomIdleRow();
       idleBursting = false;
       idleBurstFramesRemaining = 0;
     });
@@ -167,6 +174,7 @@
     pet.addEventListener("pointerleave", () => {
       if (activePointerId !== null) return;
       isHovered = false;
+      hoverRow = IDLE_ROW;
       frame = 0;
       scheduleNextIdleBurst();
     });
@@ -213,7 +221,9 @@
       const activePlayback = isHovered || isDragged || isMoving;
       if (Math.abs(vx) > 4) facingRow = vx >= 0 ? RUN_RIGHT_ROW : RUN_LEFT_ROW;
 
-      const nextRow = motionState === "stopped" || motionState === "interact"
+      const nextRow = isHovered && motionState === "stopped" && !isDragged
+        ? hoverRow
+        : motionState === "stopped" || motionState === "interact"
         ? nonRunningRow(forcedRow)
         : (isMoving || isDragged ? facingRow : IDLE_ROW);
       if (row !== nextRow) {
