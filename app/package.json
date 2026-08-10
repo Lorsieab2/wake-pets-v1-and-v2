@@ -9,6 +9,6 @@
     "check": "node --check main.js && node --check preload.js"
   },
   "dependencies": {
-    "electron": "^41.2.0"
+    "electron": "^41.10.3"
   }
 }
