@@ -22,7 +22,7 @@
       width: 192px;
       height: 208px;
       background-repeat: no-repeat;
-      background-size: 1536px 1872px;
+      background-size: auto;
       filter: drop-shadow(0 14px 12px rgba(0, 0, 0, 0.3));
       transform-origin: 0 0;
       cursor: grab;
@@ -57,9 +57,14 @@
   <div id="label" class="label"></div>
 
   <script>
-    const CELL_W = 192;
-    const CELL_H = 208;
-    const COLS = 8;
+    const DEFAULT_ATLAS = {
+      columns: 8,
+      rows: 9,
+      cellWidth: 192,
+      cellHeight: 208,
+      width: 1536,
+      height: 1872
+    };
     const IDLE_ROW = 0;
     const RUN_RIGHT_ROW = 1;
     const RUN_LEFT_ROW = 2;
@@ -84,6 +89,7 @@
 
     let frame = 0;
     let row = IDLE_ROW;
+    let atlas = { ...DEFAULT_ATLAS };
     let vx = 0;
     let vy = 0;
     let motionState = "idle";
@@ -118,7 +124,19 @@
     }
 
     window.petOverlay.onConfig((config) => {
+      const nextAtlas = config.atlas || {};
+      atlas = {
+        columns: Number(nextAtlas.columns) || DEFAULT_ATLAS.columns,
+        rows: Number(nextAtlas.rows) || DEFAULT_ATLAS.rows,
+        cellWidth: Number(nextAtlas.cellWidth) || DEFAULT_ATLAS.cellWidth,
+        cellHeight: Number(nextAtlas.cellHeight) || DEFAULT_ATLAS.cellHeight,
+        width: Number(nextAtlas.width) || DEFAULT_ATLAS.width,
+        height: Number(nextAtlas.height) || DEFAULT_ATLAS.height
+      };
       pet.style.backgroundImage = `url("${config.sprite}")`;
+      pet.style.width = `${atlas.cellWidth}px`;
+      pet.style.height = `${atlas.cellHeight}px`;
+      pet.style.backgroundSize = `${atlas.width}px ${atlas.height}px`;
       pet.style.transform = `scale(${config.scale})`;
       pet.setAttribute("aria-label", `${config.displayName} pet`);
       label.textContent = config.displayName;
@@ -204,7 +222,7 @@
         lastFrameAt = now;
       }
 
-      const frameCount = ROW_FRAME_COUNTS[row] || COLS;
+      const frameCount = ROW_FRAME_COUNTS[row] || atlas.columns;
       const frameMs = ((isMoving || isDragged) ? ACTIVE_FRAME_MS : IDLE_FRAME_MS) / Math.max(0.25, idleAnimationSpeed);
 
       if (activePlayback) {
@@ -233,7 +251,7 @@
         }
       }
       frame %= frameCount;
-      pet.style.backgroundPosition = `-${frame * CELL_W}px -${row * CELL_H}px`;
+      pet.style.backgroundPosition = `-${frame * atlas.cellWidth}px -${row * atlas.cellHeight}px`;
       requestAnimationFrame(tick);
     }
 

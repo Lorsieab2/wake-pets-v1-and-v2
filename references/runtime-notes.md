@@ -23,7 +23,7 @@ ${CODEX_HOME:-$HOME/.codex}/pets/<folder>/
 
 The app loads custom pets by folder and exposes ids internally as `custom:<folder>`. The folder name is the stable selector, so changing only `pet.json.id` is not enough to create a second installed pet.
 
-The app validates image dimensions at `1536x1872`, which is an `8 x 9` atlas of `192x208` cells. PNG and WebP are accepted.
+The app validates both supported atlas formats. v1 is `1536x1872`, an `8 x 9` atlas of `192x208` cells. v2 uses `spriteVersionNumber: 2` and is `1536x2288`, an `8 x 11` atlas of the same `192x208` cells. PNG and WebP are accepted.
 
 Current app code uses one avatar overlay manager with open/tuck/drag messages such as:
 
@@ -96,7 +96,7 @@ Represent each pet independently:
 
 Recommended row assumptions unless a stronger local contract exists:
 
-- Row count: 9.
+- Row count: 9 for v1, 11 for v2.
 - Column count: 8.
 - Cell size: `192x208`.
 - Idle and walking/running rows should be enough for roaming.
@@ -108,7 +108,7 @@ Use CSS or canvas:
 .pet {
   width: 192px;
   height: 208px;
-  background-size: 1536px 1872px;
+  background-size: 1536px 1872px; /* v1; v2 uses 1536px 2288px */
   background-repeat: no-repeat;
 }
 ```

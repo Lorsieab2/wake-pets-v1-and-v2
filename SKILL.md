@@ -1,15 +1,24 @@
 ---
 name: wake-pets
-description: Wake, validate, run, and manage already-installed Codex digital pets in the bundled native desktop overlay. Use when the user asks to spawn, wake, show, run, configure, despawn, resize, or animate one or more existing pets. Do not use to create new pet art or package new pet spritesheets.
+description: Wake, validate, run, and manage already-installed Codex digital pets in the bundled native desktop overlay, supporting legacy v1 and v2 sprite atlases. Use when the user asks to spawn, wake, show, run, configure, despawn, resize, or animate one or more existing pets. Do not use to create new pet art or package new pet spritesheets.
 ---
 
-# Wake Pets
+# Wake Pets v1 and v2
 
 ## Scope
 
 - Use only already-installed pet ids from `${CODEX_HOME:-$HOME/.codex}/pets`.
 - Do not create pets, generate art, repair spritesheets, or combine pets into one spritesheet.
 - If a requested pet is missing or invalid, tell the user to create or repair it with `$hatch-pet` first.
+
+## Supported Package Versions
+
+The validator and native overlay support both installed atlas formats:
+
+- v1: 8 columns x 9 rows, 192x208 cells, 1536x1872 pixels.
+- v2: `spriteVersionNumber: 2`, 8 columns x 11 rows, 192x208 cells, 1536x2288 pixels.
+
+Manifests may name the image with either `spritesheetPath` or `spritesheet`, and may name the pet with either `displayName` or `name`. v2 packages without an explicit `atlas` block use the standard v2 geometry above. The overlay reads the selected pet's atlas geometry instead of assuming the v1 height.
 
 ## Setup
 

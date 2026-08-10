@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Wake Pets</title>
+  <title>Wake Pets v1 and v2</title>
   <style>
     :root {
       color-scheme: light dark;
@@ -303,7 +303,7 @@
   <header aria-hidden="true"></header>
   <main>
     <section class="content-header">
-      <h1>Wake Pets</h1>
+      <h1>Wake Pets v1 and v2</h1>
       <div class="toolbar">
         <button id="spawn" class="primary" type="button">Wake All</button>
         <button id="despawn-all" class="danger" type="button">Despawn All</button>
@@ -398,7 +398,7 @@
     function render() {
       const running = new Set(state.runningPets);
       const petDetails = new Map((state.runningPetDetails || []).map((pet) => [pet.id, pet]));
-      const scaleLimits = state.petScaleLimits || { min: 0.25, max: 1.75, step: 0.01 };
+      const scaleLimits = state.petScaleLimits || { min: 0.25, max: 3, step: 0.01 };
       const settings = state.overlaySettings || {};
       movement.checked = settings.movementEnabled === true;
       collisions.checked = settings.collisionsEnabled !== false;
@@ -429,7 +429,10 @@
           </label>
           ${isRunning ? `<button data-despawn="${id}" class="pet-action" type="button">Despawn</button>` : `<button data-wake="${id}" class="pet-action primary" type="button">Wake</button>`}
         `;
-        row.querySelector(".pet-preview").style.backgroundImage = `url("${pet.sprite}")`;
+        const preview = row.querySelector(".pet-preview");
+        const atlas = pet.atlas || { columns: 8, rows: 9 };
+        preview.style.backgroundSize = `${Number(atlas.columns) || 8}00% ${Number(atlas.rows) || 9}00%`;
+        preview.style.backgroundImage = `url("${pet.sprite}")`;
         petsEl.appendChild(row);
       }
     }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Koji and Palkia Overlay</title>
+  <title>Wake Pets v1 and v2 Overlay</title>
   <style>
     html,
     body {
@@ -21,7 +21,7 @@
       width: 192px;
       height: 208px;
       background-repeat: no-repeat;
-      background-size: 1536px 1872px;
+      background-size: auto;
       filter: drop-shadow(0 14px 12px rgba(0, 0, 0, 0.3));
       transform-origin: 50% 85%;
       pointer-events: auto;
@@ -117,9 +117,14 @@
   </div>
 
   <script>
-    const CELL_W = 192;
-    const CELL_H = 208;
-    const COLS = 8;
+    const DEFAULT_ATLAS = {
+      columns: 8,
+      rows: 9,
+      cellWidth: 192,
+      cellHeight: 208,
+      width: 1536,
+      height: 1872
+    };
     const IDLE_ROW = 0;
     const RUN_RIGHT_ROW = 1;
     const RUN_LEFT_ROW = 2;
@@ -205,15 +210,20 @@
       if (pets.some((existing) => existing.id === pet.id && !existing.despawned)) return;
       const el = document.createElement("section");
       el.className = "pet";
+      const atlas = { ...DEFAULT_ATLAS, ...(pet.atlas || {}) };
+      el.style.width = `${atlas.cellWidth}px`;
+      el.style.height = `${atlas.cellHeight}px`;
+      el.style.backgroundSize = `${atlas.width}px ${atlas.height}px`;
       el.style.backgroundImage = `url("${pet.sprite}")`;
       el.setAttribute("aria-label", `${pet.displayName} pet`);
       el.innerHTML = `<div class="label">${pet.displayName}</div>`;
       stage.appendChild(el);
       pet.scale ??= pet.id === "palkia" ? 0.64 : 0.58;
-      pet.x ??= randomRange(40, Math.max(41, window.innerWidth - CELL_W * pet.scale - 40));
-      pet.y ??= randomRange(40, Math.max(41, window.innerHeight - CELL_H * pet.scale - 80));
+      pet.x ??= randomRange(40, Math.max(41, window.innerWidth - atlas.cellWidth * pet.scale - 40));
+      pet.y ??= randomRange(40, Math.max(41, window.innerHeight - atlas.cellHeight * pet.scale - 80));
       pet.defaultSpeed ??= randomRange(78, 92);
-      pet.phase ??= Math.floor(Math.random() * COLS);
+      pet.phase ??= Math.floor(Math.random() * atlas.columns);
+      pet.atlas = atlas;
       setVelocityFromAngle(pet, Math.random() * Math.PI * 2, pet.defaultSpeed * randomRange(0.85, 1.15));
       pet.el = el;
       pet.frame = pet.phase;
@@ -283,8 +293,8 @@
 
     function boundsFor(pet) {
       return {
-        width: CELL_W * pet.scale,
-        height: CELL_H * pet.scale
+        width: pet.atlas.cellWidth * pet.scale,
+        height: pet.atlas.cellHeight * pet.scale
       };
     }
 
@@ -317,7 +327,7 @@
       pet.row = speed > 16 ? (pet.vx >= 0 ? RUN_RIGHT_ROW : RUN_LEFT_ROW) : IDLE_ROW;
       pet.el.style.left = `${pet.x}px`;
       pet.el.style.top = `${pet.y}px`;
-      pet.el.style.backgroundPosition = `-${pet.frame * CELL_W}px -${pet.row * CELL_H}px`;
+      pet.el.style.backgroundPosition = `-${pet.frame * pet.atlas.cellWidth}px -${pet.row * pet.atlas.cellHeight}px`;
       pet.el.style.transform = `scale(${pet.scale})`;
       pet.el.style.zIndex = String(1000 + Math.round(pet.y));
     }
@@ -341,7 +351,7 @@
           bounce(pet);
           normalizeVelocity(pet, pet.defaultSpeed, Math.min(1, dt * 0.55));
         }
-        if (advance) pet.frame = (pet.frame + 1) % COLS;
+        if (advance) pet.frame = (pet.frame + 1) % pet.atlas.columns;
         render(pet);
       }
 
@@ -370,8 +380,8 @@
     document.getElementById("scatter").addEventListener("click", () => {
       for (const pet of pets) {
         if (pet.despawned) continue;
-        pet.x = Math.random() * Math.max(1, window.innerWidth - CELL_W * pet.scale);
-        pet.y = Math.random() * Math.max(1, window.innerHeight - CELL_H * pet.scale);
+        pet.x = Math.random() * Math.max(1, window.innerWidth - pet.atlas.cellWidth * pet.scale);
+        pet.y = Math.random() * Math.max(1, window.innerHeight - pet.atlas.cellHeight * pet.scale);
         setVelocityFromAngle(pet, Math.random() * Math.PI * 2, pet.defaultSpeed * randomRange(0.8, 1.25));
       }
       releasePointerSoon();

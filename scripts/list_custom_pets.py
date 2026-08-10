@@ -10,7 +10,24 @@ from pathlib import Path
 from typing import Optional
 
 
-EXPECTED_SIZE = (1536, 1872)
+LEGACY_ATLAS = {
+    "version": 1,
+    "columns": 8,
+    "rows": 9,
+    "cellWidth": 192,
+    "cellHeight": 208,
+    "width": 1536,
+    "height": 1872,
+}
+V2_ATLAS = {
+    "version": 2,
+    "columns": 8,
+    "rows": 11,
+    "cellWidth": 192,
+    "cellHeight": 208,
+    "width": 1536,
+    "height": 2288,
+}
 
 
 def image_size(path: Path) -> Optional[tuple[int, int, str]]:
@@ -40,6 +57,18 @@ def image_size(path: Path) -> Optional[tuple[int, int, str]]:
     return None
 
 
+def manifest_version(manifest: dict) -> int:
+    value = manifest.get("spriteVersionNumber", manifest.get("sprite_version_number", 1))
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def atlas_for_manifest(manifest: dict) -> dict:
+    return dict(V2_ATLAS if manifest_version(manifest) == 2 else LEGACY_ATLAS)
+
+
 def inspect_pet(folder: Path) -> dict:
     manifest_path = folder / "pet.json"
     result = {"folder": folder.name, "path": str(folder), "valid": False, "errors": []}
@@ -52,11 +81,14 @@ def inspect_pet(folder: Path) -> dict:
         result["errors"].append(f"invalid pet.json: {exc}")
         return result
 
+    atlas = atlas_for_manifest(manifest)
     result.update(
         id=manifest.get("id"),
-        displayName=manifest.get("displayName"),
+        displayName=manifest.get("displayName") or manifest.get("name"),
         description=manifest.get("description"),
-        spritesheetPath=manifest.get("spritesheetPath", "spritesheet.webp"),
+        spriteVersionNumber=manifest.get("spriteVersionNumber", manifest.get("sprite_version_number", 1)),
+        spritesheetPath=manifest.get("spritesheetPath") or manifest.get("spritesheet") or "spritesheet.webp",
+        atlas=atlas,
     )
     sprite = folder / result["spritesheetPath"]
     if not sprite.exists():
@@ -68,8 +100,12 @@ def inspect_pet(folder: Path) -> dict:
         return result
     width, height, kind = size
     result.update(width=width, height=height, format=kind)
-    if (width, height) != EXPECTED_SIZE:
-        result["errors"].append(f"expected {EXPECTED_SIZE[0]}x{EXPECTED_SIZE[1]}, got {width}x{height}")
+    if (width, height) != (atlas["width"], atlas["height"]):
+        result["errors"].append(
+            f"expected v{atlas['version']} {atlas['width']}x{atlas['height']}, got {width}x{height}"
+        )
+    if manifest_version(manifest) not in (1, 2):
+        result["errors"].append("unsupported spriteVersionNumber; expected 1 or 2")
     result["valid"] = not result["errors"]
     return result
 

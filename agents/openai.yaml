@@ -1,4 +1,4 @@
 interface:
-  display_name: "Wake Pets"
-  short_description: "Run and manage installed Codex pets in the native overlay."
-  default_prompt: "Wake already-installed Codex pets in the native desktop overlay."
+  display_name: "Wake Pets v1 and v2"
+  short_description: "Validate and run installed Codex pets using v1 and v2 atlases."
+  default_prompt: "Wake or manage installed Codex pets in the native overlay, supporting v1 and v2 sprite atlases."

@@ -2,12 +2,29 @@ const { app, BrowserWindow, Menu, ipcMain, screen } = require("electron");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 
-const CELL_W = 192;
-const CELL_H = 208;
+const LEGACY_ATLAS = Object.freeze({
+  version: 1,
+  columns: 8,
+  rows: 9,
+  cellWidth: 192,
+  cellHeight: 208,
+  width: 1536,
+  height: 1872
+});
+const V2_ATLAS = Object.freeze({
+  version: 2,
+  columns: 8,
+  rows: 11,
+  cellWidth: 192,
+  cellHeight: 208,
+  width: 1536,
+  height: 2288
+});
 const PET_WINDOW_PAD = 0;
 const MIN_SCALE_MULTIPLIER = 0.25;
-const MAX_SCALE_MULTIPLIER = 1.75;
+const MAX_SCALE_MULTIPLIER = 3;
 const SCALE_STEP = 0.08;
 const DEFAULT_SCALE = 0.46;
 const LARGE_PET_DEFAULT_SCALE = 0.52;
@@ -52,15 +69,37 @@ function wantsConfig(argv = process.argv) {
   return argv.includes("--config");
 }
 
+function manifestVersion(manifest) {
+  const value = manifest.spriteVersionNumber ?? manifest.sprite_version_number ?? 1;
+  const version = Number(value);
+  return Number.isInteger(version) ? version : 0;
+}
+
+function atlasForManifest(manifest) {
+  const defaults = manifestVersion(manifest) === 2 ? V2_ATLAS : LEGACY_ATLAS;
+  const source = manifest.atlas && typeof manifest.atlas === "object" ? manifest.atlas : {};
+  const numberOrDefault = (value, fallback) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+  return {
+    version: manifestVersion(manifest) || defaults.version,
+    columns: numberOrDefault(source.columns, defaults.columns),
+    rows: numberOrDefault(source.rows, defaults.rows),
+    cellWidth: numberOrDefault(source.cellWidth ?? source.cell_width, defaults.cellWidth),
+    cellHeight: numberOrDefault(source.cellHeight ?? source.cell_height, defaults.cellHeight),
+    width: numberOrDefault(source.width, defaults.width),
+    height: numberOrDefault(source.height, defaults.height)
+  };
+}
+
 function petPayload(id) {
   const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
   const petDir = path.join(codexHome, "pets", id);
   const manifest = JSON.parse(fs.readFileSync(path.join(petDir, "pet.json"), "utf8"));
-  const spritesheetPath = manifest.spritesheetPath || "spritesheet.webp";
+  const spritesheetPath = manifest.spritesheetPath || manifest.spritesheet || "spritesheet.webp";
   return {
     id,
-    displayName: manifest.displayName || manifest.id || id,
-    sprite: `file://${path.join(petDir, spritesheetPath)}`
+    displayName: manifest.displayName || manifest.name || manifest.id || id,
+    sprite: pathToFileURL(path.join(petDir, spritesheetPath)).toString(),
+    atlas: atlasForManifest(manifest)
   };
 }
 
@@ -118,8 +157,8 @@ function bounds() {
 }
 
 function petHitBox(pet) {
-  const spriteWidth = CELL_W * pet.scale;
-  const spriteHeight = CELL_H * pet.scale;
+  const spriteWidth = pet.atlas.cellWidth * pet.scale;
+  const spriteHeight = pet.atlas.cellHeight * pet.scale;
   const insetX = (pet.width - spriteWidth) / 2 + spriteWidth * 0.12;
   const insetY = (pet.height - spriteHeight) / 2 + spriteHeight * 0.1;
   return {
@@ -141,10 +180,10 @@ function centerOf(pet) {
   };
 }
 
-function petWindowSize(scale) {
+function petWindowSize(scale, atlas = LEGACY_ATLAS) {
   return {
-    width: Math.ceil(CELL_W * scale + PET_WINDOW_PAD * 2),
-    height: Math.ceil(CELL_H * scale + PET_WINDOW_PAD * 2)
+    width: Math.ceil(atlas.cellWidth * scale + PET_WINDOW_PAD * 2),
+    height: Math.ceil(atlas.cellHeight * scale + PET_WINDOW_PAD * 2)
   };
 }
 
@@ -197,7 +236,8 @@ function sendPetConfig(pet) {
     id: pet.id,
     displayName: pet.displayName,
     sprite: pet.sprite,
-    scale: pet.scale
+    scale: pet.scale,
+    atlas: pet.atlas
   });
 }
 
@@ -207,6 +247,7 @@ function overlayState() {
       id: pet.id,
       displayName: pet.displayName,
       sprite: pet.sprite,
+      atlas: pet.atlas,
       defaultScale: defaultScaleForPet(pet.id)
     })),
     runningPets: [...pets.keys()],
@@ -236,7 +277,7 @@ function createConfigWindow() {
     height: 680,
     minWidth: 460,
     minHeight: 480,
-    title: "Wake Pets",
+    title: "Wake Pets v1 and v2",
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 16 },
     show: false,
@@ -275,7 +316,7 @@ function createPetWindow(id) {
 
   const display = bounds();
   const defaultScale = defaultScaleForPet(id);
-  const { width, height } = petWindowSize(defaultScale);
+  const { width, height } = petWindowSize(defaultScale, payload.atlas);
   const pet = {
     ...payload,
     scale: defaultScale,
@@ -373,7 +414,7 @@ function startPetMovement(pet) {
 function setPetScale(pet, scale, shouldBroadcast = false) {
   const oldCenter = centerOf(pet);
   const nextScale = clamp(scale, pet.defaultScale * MIN_SCALE_MULTIPLIER, pet.defaultScale * MAX_SCALE_MULTIPLIER);
-  const nextSize = petWindowSize(nextScale);
+  const nextSize = petWindowSize(nextScale, pet.atlas);
   pet.scale = nextScale;
   pet.width = nextSize.width;
   pet.height = nextSize.height;
