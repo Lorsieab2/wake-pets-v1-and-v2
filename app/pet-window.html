@@ -37,7 +37,8 @@
       position: absolute;
       z-index: 2;
       left: 50%;
-      bottom: 18px;
+      top: 0;
+      bottom: auto;
       transform: translateX(-50%);
       max-width: calc(100% - 8px);
       padding: 2px 7px;
@@ -69,6 +70,7 @@
     const RUN_RIGHT_ROW = 1;
     const RUN_LEFT_ROW = 2;
     const IDLE_ROWS = [0, 3, 4, 5, 6, 7, 8];
+    const LABEL_GAP = 4;
     const ACTIVE_FRAME_MS = 105;
     const IDLE_FRAME_MS = 160;
     const IDLE_BURST_MIN_DELAY_MS = 4500;
@@ -144,6 +146,7 @@
       pet.style.height = `${atlas.cellHeight}px`;
       pet.style.backgroundSize = `${atlas.width}px ${atlas.height}px`;
       pet.style.transform = `scale(${config.scale})`;
+      label.style.top = `${atlas.cellHeight * Number(config.scale) + LABEL_GAP}px`;
       pet.setAttribute("aria-label", `${config.displayName} pet`);
       label.textContent = config.displayName;
     });

@@ -23,12 +23,14 @@ const V2_ATLAS = Object.freeze({
   height: 2288
 });
 const PET_WINDOW_PAD = 0;
+const PET_LABEL_GAP = 4;
+const PET_LABEL_HEIGHT = 23;
 const MIN_SCALE_MULTIPLIER = 0.25;
 const MAX_SCALE_MULTIPLIER = 3;
 const SCALE_STEP = 0.08;
 const DEFAULT_SCALE = 0.46;
 const LARGE_PET_DEFAULT_SCALE = 0.52;
-const DEFAULT_SIZE_MULTIPLIER = 1.75;
+const DEFAULT_SIZE_MULTIPLIER = 1;
 const DEFAULT_SPEED_MIN = 52;
 const DEFAULT_SPEED_MAX = 64;
 const COLLISION_PAUSE_MIN_MS = 2600;
@@ -161,13 +163,11 @@ function bounds() {
 function petHitBox(pet) {
   const spriteWidth = pet.atlas.cellWidth * pet.scale;
   const spriteHeight = pet.atlas.cellHeight * pet.scale;
-  const insetX = (pet.width - spriteWidth) / 2 + spriteWidth * 0.12;
-  const insetY = (pet.height - spriteHeight) / 2 + spriteHeight * 0.1;
   return {
-    left: pet.x + insetX,
-    right: pet.x + pet.width - insetX,
-    top: pet.y + insetY,
-    bottom: pet.y + pet.height - insetY
+    left: pet.x + spriteWidth * 0.12,
+    right: pet.x + spriteWidth * 0.88,
+    top: pet.y + spriteHeight * 0.1,
+    bottom: pet.y + spriteHeight * 0.9
   };
 }
 
@@ -176,16 +176,17 @@ function hitBoxesOverlap(a, b) {
 }
 
 function centerOf(pet) {
+  const spriteHeight = pet.atlas.cellHeight * pet.scale;
   return {
     x: pet.x + pet.width / 2,
-    y: pet.y + pet.height / 2
+    y: pet.y + spriteHeight / 2
   };
 }
 
 function petWindowSize(scale, atlas = LEGACY_ATLAS) {
   return {
     width: Math.ceil(atlas.cellWidth * scale + PET_WINDOW_PAD * 2),
-    height: Math.ceil(atlas.cellHeight * scale + PET_WINDOW_PAD * 2)
+    height: Math.ceil(atlas.cellHeight * scale + PET_LABEL_GAP + PET_LABEL_HEIGHT + PET_WINDOW_PAD * 2)
   };
 }
 
