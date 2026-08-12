@@ -40,6 +40,7 @@ release/
 app/release/
 out/
 app/out/
+outputs/
 
 # IDEs and Editors
 .idea/

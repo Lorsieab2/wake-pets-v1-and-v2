@@ -6,6 +6,21 @@ A Codex skill with a bundled native multi-pet overlay for installed Codex pets.
 
 Supports legacy v1 8x9 atlases and v2 8x11 atlases.
 
+## Standalone Windows App
+
+The repository also ships a separate portable Electron app. It runs independently of Codex and the installed skill. At startup it reads `$CODEX_HOME/pets` or `%USERPROFILE%\.codex\pets` directly, even when Codex is closed, then falls back to a `pets` folder beside the executable.
+
+Build it from PowerShell after installing the app dependencies:
+
+```powershell
+cd app
+npm install
+cd ..
+scripts\build_standalone.ps1 -PetId my-pet,another-pet
+```
+
+The generated `release\Wake-Pets-v1-and-v2-1.1.0.zip` contains `Wake Codex Pets without Codex.exe` and an adjacent `pets` folder. The bundled folder is a fallback; users can add additional valid pet packages there, while the app continues to pick up packages from the Codex pets folder automatically.
+
 ## Fork Changes
 
 This fork is maintained from the upstream skill at [princejoogie/wake-pets](https://github.com/princejoogie/wake-pets). It remains a drop-in replacement for the original `wake-pets` skill while documenting and carrying these changes:

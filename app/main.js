@@ -95,8 +95,7 @@ function atlasForManifest(manifest) {
 }
 
 function petPayload(id) {
-  const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
-  const petDir = path.join(codexHome, "pets", id);
+  const petDir = petDirectoryFor(id);
   const manifest = JSON.parse(fs.readFileSync(path.join(petDir, "pet.json"), "utf8"));
   const spritesheetPath = manifest.spritesheetPath || manifest.spritesheet || "spritesheet.webp";
   return {
@@ -107,19 +106,51 @@ function petPayload(id) {
   };
 }
 
+function petRoots() {
+  const roots = [];
+  const addRoot = (value) => {
+    if (!value) return;
+    const resolved = path.resolve(value);
+    if (!roots.includes(resolved)) roots.push(resolved);
+  };
+
+  addRoot(process.env.WAKE_PETS_DIR);
+  const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
+  addRoot(path.join(codexHome, "pets"));
+  if (app.isPackaged) {
+    addRoot(path.join(path.dirname(process.execPath), "pets"));
+    addRoot(path.join(process.resourcesPath, "pets"));
+  } else {
+    addRoot(path.join(__dirname, "pets"));
+  }
+
+  return roots;
+}
+
+function petDirectoryFor(id) {
+  for (const root of petRoots()) {
+    const petDir = path.join(root, id);
+    if (fs.existsSync(path.join(petDir, "pet.json"))) return petDir;
+  }
+  throw new Error(`Pet package not found: ${id}`);
+}
+
 function defaultScaleForPet(id) {
   return id === "palkia" ? LARGE_PET_DEFAULT_SCALE : DEFAULT_SCALE;
 }
 
 function installedPets() {
-  const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
-  const petsDir = path.join(codexHome, "pets");
-  if (!fs.existsSync(petsDir)) return [];
-  return fs.readdirSync(petsDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => {
+  const ids = new Set();
+  for (const root of petRoots()) {
+    if (!fs.existsSync(root)) continue;
+    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+      if (entry.isDirectory()) ids.add(entry.name);
+    }
+  }
+  return [...ids]
+    .map((id) => {
       try {
-        return petPayload(entry.name);
+        return petPayload(id);
       } catch {
         return null;
       }
@@ -552,6 +583,11 @@ function tick() {
       state: pet.dragging ? "drag" : (now < pet.interactingUntil ? "interact" : (pet.pinned ? "stopped" : "move"))
     });
   }
+}
+
+if (app.isPackaged) {
+  app.setName("Wake Pets v1 and v2");
+  app.setAppUserModelId("com.lorsieab2.wakepets");
 }
 
 const gotLock = app.requestSingleInstanceLock();
