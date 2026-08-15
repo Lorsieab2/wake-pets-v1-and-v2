@@ -295,6 +295,20 @@
       gap: 6px;
       min-width: 0;
     }
+    .flip-controls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 8px 0 10px 132px;
+      color: #555;
+      font-size: 11px;
+    }
+    .flip-controls label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
 
     .size-preset {
       min-width: 64px;
@@ -455,12 +469,17 @@
             <button class="size-preset ${Math.abs(currentSize - 1) < 0.005 ? "active" : ""}" data-pet-scale-preset="${id}" data-default-scale="${defaultScale}" data-size-preset="1" type="button" aria-pressed="${Math.abs(currentSize - 1) < 0.005}" ${isRunning ? "" : "disabled"}>100%</button>
             <button class="size-preset ${Math.abs(currentSize - 1.75) < 0.005 ? "active" : ""}" data-pet-scale-preset="${id}" data-default-scale="${defaultScale}" data-size-preset="1.75" type="button" aria-pressed="${Math.abs(currentSize - 1.75) < 0.005}" ${isRunning ? "" : "disabled"}>175%</button>
           </div>
+          <div class="flip-controls" role="group" aria-label="Flip pet">
+            <label><input data-pet-flip-x="${id}" type="checkbox" ${detail.flipX ? "checked" : ""} ${isRunning ? "" : "disabled"}> Flip horizontal</label>
+            <label><input data-pet-flip-y="${id}" type="checkbox" ${detail.flipY ? "checked" : ""} ${isRunning ? "" : "disabled"}> Flip vertical</label>
+          </div>
           ${isRunning ? `<button data-despawn="${id}" class="pet-action" type="button">Despawn</button>` : `<button data-wake="${id}" class="pet-action primary" type="button">Wake</button>`}
         `;
         const preview = row.querySelector(".pet-preview");
         const atlas = pet.atlas || { columns: 8, rows: 9 };
         preview.style.backgroundSize = `${Number(atlas.columns) || 8}00% ${Number(atlas.rows) || 9}00%`;
         preview.style.backgroundImage = `url("${pet.sprite}")`;
+        preview.style.transform = `scaleX(${detail.flipX ? -1 : 1}) scaleY(${detail.flipY ? -1 : 1})`;
         petsEl.appendChild(row);
       }
     }
@@ -503,6 +522,14 @@
       if (value) value.textContent = formatScale(event.target.value);
       const row = event.target.closest(".pet");
       if (row) updateSizePresetState(row, Number(event.target.value));
+    });
+
+    petsEl.addEventListener("change", (event) => {
+      const input = event.target;
+      const horizontal = input.dataset?.petFlipX;
+      const vertical = input.dataset?.petFlipY;
+      if (horizontal) window.petOverlay.setPetFlip(horizontal, "x", input.checked);
+      if (vertical) window.petOverlay.setPetFlip(vertical, "y", input.checked);
     });
 
     spawnButton.addEventListener("click", () => {

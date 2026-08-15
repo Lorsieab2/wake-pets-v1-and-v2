@@ -145,7 +145,12 @@
       pet.style.width = `${atlas.cellWidth}px`;
       pet.style.height = `${atlas.cellHeight}px`;
       pet.style.backgroundSize = `${atlas.width}px ${atlas.height}px`;
-      pet.style.transform = `scale(${config.scale})`;
+      const sx = config.flipX ? -1 : 1;
+      const sy = config.flipY ? -1 : 1;
+      // Keep negatively scaled sprites inside the transparent window.
+      pet.style.left = config.flipX ? `${atlas.cellWidth}px` : "0px";
+      pet.style.top = config.flipY ? `${atlas.cellHeight}px` : "0px";
+      pet.style.transform = `scale(${Number(config.scale) * sx}, ${Number(config.scale) * sy})`;
       label.style.top = `${atlas.cellHeight * Number(config.scale) + LABEL_GAP}px`;
       pet.setAttribute("aria-label", `${config.displayName} pet`);
       label.textContent = config.displayName;

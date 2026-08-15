@@ -128,7 +128,9 @@ The direct Electron equivalent is:
 cd app && npm run config
 ```
 
-Config can wake/despawn pets, toggle movement/collisions, show or hide names, change movement speed, change idle animation speed, and resize running pets.
+Config can wake/despawn pets, toggle movement/collisions, show or hide names, change movement speed, change idle animation speed, resize running pets, and independently flip each running pet horizontally or vertically with the per-pet checkboxes.
+
+The per-pet `Flip horizontal` and `Flip vertical` checkboxes apply CSS transforms to the live sprite without changing the atlas. Horizontal flipping mirrors the pet left-to-right; vertical flipping mirrors it top-to-bottom. Both are off by default and are mutually independent.
 
 ## Stop Overlay
 
