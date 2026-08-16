@@ -148,9 +148,10 @@
       const sx = config.flipX ? -1 : 1;
       const sy = config.flipY ? -1 : 1;
       // Keep negatively scaled sprites inside the transparent window.
-      pet.style.left = config.flipX ? `${atlas.cellWidth}px` : "0px";
-      pet.style.top = config.flipY ? `${atlas.cellHeight}px` : "0px";
-      pet.style.transform = `scale(${Number(config.scale) * sx}, ${Number(config.scale) * sy})`;
+      const scale = Number(config.scale) || 1;
+      pet.style.left = config.flipX ? `${atlas.cellWidth * scale}px` : "0px";
+      pet.style.top = config.flipY ? `${atlas.cellHeight * scale}px` : "0px";
+      pet.style.transform = `scale(${scale * sx}, ${scale * sy})`;
       label.style.top = `${atlas.cellHeight * Number(config.scale) + LABEL_GAP}px`;
       pet.setAttribute("aria-label", `${config.displayName} pet`);
       label.textContent = config.displayName;
