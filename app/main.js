@@ -271,6 +271,8 @@ function sendPetConfig(pet) {
     displayName: pet.displayName,
     sprite: pet.sprite,
     scale: pet.scale,
+    flipX: pet.flipX,
+    flipY: pet.flipY,
     atlas: pet.atlas
   });
 }
@@ -285,7 +287,7 @@ function overlayState() {
       defaultScale: defaultScaleForPet(pet.id)
     })),
     runningPets: [...pets.keys()],
-    runningPetDetails: [...pets.values()].map((pet) => ({ id: pet.id, scale: pet.scale, defaultScale: pet.defaultScale })),
+    runningPetDetails: [...pets.values()].map((pet) => ({ id: pet.id, scale: pet.scale, defaultScale: pet.defaultScale, flipX: pet.flipX, flipY: pet.flipY })),
     petScaleLimits: { min: MIN_SCALE_MULTIPLIER, max: MAX_SCALE_MULTIPLIER, step: 0.01 },
     overlaySettings
   };
@@ -372,7 +374,9 @@ function createPetWindow(id) {
     collisionCooldownUntil: 0,
     interactionRow: 0,
     stoppedRow: 0,
-    stoppedRowUntil: 0
+    stoppedRowUntil: 0,
+    flipX: false,
+    flipY: false
   };
   chooseStoppedRow(pet);
   if (overlaySettings.movementEnabled) startPetMovement(pet);
@@ -460,6 +464,13 @@ function setPetScale(pet, scale, shouldBroadcast = false) {
   pet.win.setBounds({ x: Math.round(pet.x), y: Math.round(pet.y), width: pet.width, height: pet.height }, false);
   sendPetConfig(pet);
   if (shouldBroadcast) broadcastState();
+}
+
+function setPetFlip(pet, axis, value) {
+  if (axis !== "x" && axis !== "y") return;
+  pet[axis === "x" ? "flipX" : "flipY"] = Boolean(value);
+  sendPetConfig(pet);
+  broadcastState();
 }
 
 function writeOverlayRequest(argv = process.argv) {
@@ -688,6 +699,12 @@ ipcMain.on("overlay-set-pet-scale", (_event, id, scale) => {
   const pet = pets.get(id);
   if (!pet || pet.win?.isDestroyed() || !Number.isFinite(scale)) return;
   setPetScale(pet, scale);
+});
+
+ipcMain.on("overlay-set-pet-flip", (_event, id, axis, value) => {
+  const pet = pets.get(id);
+  if (!pet || pet.win?.isDestroyed()) return;
+  setPetFlip(pet, axis, value);
 });
 
 ipcMain.on("overlay-despawn-all", () => {
